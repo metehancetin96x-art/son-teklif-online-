@@ -3,224 +3,256 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1020">
-<title>Adam Asmaca Online</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#24382e">
+<title>Adam Asmaca | Kara Tahta</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+
 :root{
- --bg:#0b1020;
- --card:#171e33;
- --border:#303b57;
- --text:#f5f7ff;
- --muted:#a4b0ca;
- --accent:#8b5cf6;
- --green:#34d399;
- --red:#fb7185;
+ --board:#253f33;
+ --board-dark:#172c23;
+ --chalk:#f2eedc;
+ --chalk-muted:#d0d7c5;
+ --yellow:#f5d98c;
+ --wood:#83502b;
+ --wood-light:#b77c47;
+ --red:#f3a8a0;
+ --green:#b7efb3;
 }
 *{box-sizing:border-box}
 body{
  margin:0;
- background:radial-gradient(circle at top,#202b50,var(--bg) 65%);
- color:var(--text);
- font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
  min-height:100vh;
+ background:
+  repeating-linear-gradient(90deg,#654021 0px,#76502c 8px,#59391e 17px);
+ color:var(--chalk);
+ font-family:'Patrick Hand','Comic Sans MS',cursive;
 }
 main{
- max-width:850px;
- margin:auto;
- padding:22px 15px 70px;
+ max-width:860px;
+ margin:0 auto;
+ padding:18px 13px 65px;
 }
-header{text-align:center;margin-bottom:25px}
-.logo{font-size:42px;margin-bottom:8px}
-h1{font-size:29px;margin:5px 0;font-weight:850}
-h2{font-size:21px;margin:8px 0 18px}
-h3{font-size:17px}
-p{line-height:1.55}
-.subtitle,.muted,.hint{color:var(--muted)}
-.subtitle{font-size:14px}
+header{
+ text-align:center;
+ padding:12px 0 20px;
+}
+.logo{font-size:42px}
+h1{
+ font-size:40px;
+ letter-spacing:3px;
+ margin:3px 0;
+ text-shadow:1px 2px 2px #0005;
+}
+h2{font-size:29px;margin:5px 0 15px}
+h3{font-size:23px}
+p{font-size:19px;line-height:1.4}
+.subtitle{
+ color:var(--yellow);
+ font-size:17px;
+ letter-spacing:2px;
+}
 .card,.glass{
- background:var(--card);
- border:1px solid var(--border);
- border-radius:20px;
+ background:
+  radial-gradient(ellipse at 20% 15%,#ffffff09,transparent 65%),
+  repeating-linear-gradient(5deg,transparent 0px,transparent 35px,#ffffff04 37px),
+  var(--board);
+ border:9px ridge var(--wood-light);
+ outline:2px solid #4c2e19;
+ border-radius:8px;
  padding:20px;
- margin-bottom:15px;
- box-shadow:0 10px 35px #0002;
+ margin-bottom:22px;
+ box-shadow:0 9px 18px #0007,inset 0 0 35px #0004;
 }
-label{display:block;font-size:14px;margin:15px 0 7px}
+label{
+ display:block;
+ font-size:21px;
+ margin:13px 0 7px;
+}
 input,select,textarea{
  display:block;
  width:100%;
- background:#0e1528;
- color:white;
- border:1px solid #455170;
- border-radius:12px;
- padding:14px;
- font-size:16px;
+ padding:12px 14px;
  margin-top:7px;
- font-family:inherit;
+ background:#14291f;
+ border:2px solid #9ba995;
+ border-radius:5px;
+ color:var(--chalk);
+ font:21px 'Patrick Hand',cursive;
 }
-textarea{min-height:135px;resize:vertical}
-input:focus,textarea:focus,select:focus{
- outline:2px solid var(--accent);
+textarea{min-height:130px;resize:vertical}
+input:focus,select:focus,textarea:focus{
+ outline:2px solid var(--yellow);
 }
 button{
- border:0;
- border-radius:13px;
- padding:14px 18px;
- background:var(--accent);
- color:white;
- font-size:16px;
- font-weight:750;
+ background:#d5c6a0;
+ color:#27372b;
+ border:2px solid #f3e6c7;
+ border-radius:5px;
+ padding:12px 18px;
+ font:23px 'Patrick Hand',cursive;
+ font-weight:bold;
  cursor:pointer;
+ box-shadow:2px 3px 0 #0005;
 }
-button:disabled{opacity:.4;cursor:not-allowed}
+button:disabled{opacity:.35;cursor:not-allowed}
+button:active:not(:disabled){transform:translateY(2px)}
 .btn{width:100%;margin-top:13px}
-.secondary{background:#303b57}
-.small{width:auto;padding:9px 13px;font-size:13px}
+.secondary{background:#aebcaf}
+.small{font-size:17px;padding:8px 12px}
+.center{text-align:center}
+.muted,.hint,.status{color:var(--chalk-muted)}
+.tag{
+ display:inline-block;
+ padding:5px 12px;
+ border:2px dashed var(--yellow);
+ border-radius:5px;
+ color:var(--yellow);
+ font-size:17px;
+}
+.room-code{
+ font-size:49px;
+ letter-spacing:7px;
+ color:var(--yellow);
+ font-weight:bold;
+ margin:15px 0;
+}
+.notice{
+ background:#623c35;
+ border:2px solid var(--red);
+ border-radius:5px;
+ padding:13px;
+ font-size:19px;
+ margin:15px 0;
+}
+.info{
+ border:2px dashed #a3b3a0;
+ background:#142a20;
+ padding:14px;
+ font-size:19px;
+ margin:15px 0;
+}
 .topline{
  display:flex;
  justify-content:space-between;
  align-items:center;
- gap:12px;
- margin-bottom:18px;
-}
-.tag{
- display:inline-block;
- background:#34265b;
- color:#d9c9ff;
- border-radius:20px;
- padding:7px 12px;
- font-size:12px;
- font-weight:800;
-}
-.room-code{
- font-size:42px;
- font-weight:900;
- letter-spacing:7px;
- color:#c4b5fd;
- margin:18px 0;
-}
-.center{text-align:center}
-.notice{
- background:#582537;
- border:1px solid var(--red);
- color:#ffe4e6;
- padding:14px;
- border-radius:13px;
- margin:15px 0;
-}
-.info{
- background:#222d49;
- border-radius:13px;
- padding:14px;
- margin:15px 0;
- color:#dbe4fa;
+ gap:8px;
+ margin-bottom:16px;
 }
 .scoreboard{
  display:grid;
- grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
- gap:10px;
- margin:15px 0;
+ grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+ gap:11px;
+ margin:14px 0;
 }
 .player{
- background:#10182c;
- border:1px solid #35415d;
- border-radius:15px;
- padding:15px;
+ background:#193127;
+ border:2px dashed #718b78;
+ padding:12px;
+ border-radius:5px;
 }
-.player.me{border-color:var(--accent)}
-.name{font-weight:750;overflow-wrap:anywhere}
-.balance{font-size:23px;font-weight:850;margin-top:8px}
+.player.me{border-color:var(--yellow)}
+.name{font-size:20px;overflow-wrap:anywhere}
+.balance{
+ font-size:27px;
+ color:var(--yellow);
+ margin-top:5px;
+}
 .word{
- display:flex;
- justify-content:center;
- flex-wrap:wrap;
- gap:7px;
- margin:24px 0;
-}
-.letter{
- min-width:29px;
- height:42px;
- display:flex;
- align-items:center;
- justify-content:center;
- border-bottom:3px solid #a78bfa;
- font-size:24px;
- font-weight:850;
-}
-.space{width:17px;border:0}
-.keyboard{
  display:flex;
  flex-wrap:wrap;
  justify-content:center;
  gap:6px;
+ margin:23px 0;
+}
+.letter{
+ min-width:29px;
+ height:43px;
+ border-bottom:3px solid var(--chalk);
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ font-size:30px;
+}
+.space{border:0;width:17px}
+.keyboard{
+ display:flex;
+ flex-wrap:wrap;
+ justify-content:center;
+ gap:7px;
  margin:20px 0;
 }
 .key{
- width:calc((100% - 48px)/7);
  min-width:35px;
- max-width:53px;
- padding:12px 2px;
- background:#34415f;
- border-radius:9px;
- font-size:15px;
+ width:calc((100% - 55px)/7);
+ max-width:57px;
+ padding:8px 0;
+ background:#e0ddc9;
+ font-size:22px;
 }
-.key.used{opacity:.3}
+.key.used{
+ opacity:.28;
+ text-decoration:line-through;
+}
 .hangman{
  width:220px;
  height:230px;
  display:block;
- margin:10px auto;
+ margin:12px auto;
+ filter:drop-shadow(1px 1px 1px #0007);
 }
 .hangman line,.hangman circle{
- stroke:#e2e8f0;
- stroke-width:5;
+ stroke:var(--chalk);
+ stroke-width:4;
  fill:none;
  stroke-linecap:round;
 }
-.hangman .base{stroke:#64748b}
-.status{
- font-size:13px;
- color:var(--muted);
-}
+.hangman .base{stroke:#c9b67f}
 .winner{
- font-size:26px;
- font-weight:850;
- color:var(--green);
- margin:12px 0;
+ color:var(--yellow);
+ font-size:36px;
+ margin:13px 0;
 }
 .resultrow{
  display:flex;
  justify-content:space-between;
- padding:13px 0;
- border-bottom:1px solid var(--border);
- gap:10px;
+ padding:12px 0;
+ font-size:21px;
+ border-bottom:1px dashed #829989;
+ gap:12px;
 }
 footer{
  text-align:center;
- color:var(--muted);
- font-size:12px;
- margin-top:30px;
+ color:#fff3d5;
+ font-size:16px;
+ text-shadow:1px 2px 2px #000;
 }
 @media(max-width:390px){
- .card,.glass{padding:15px}
- .key{min-width:31px;font-size:13px}
- .room-code{font-size:34px}
+ main{padding:12px 9px 50px}
+ .card,.glass{padding:13px;border-width:7px}
+ h1{font-size:34px}
+ .room-code{font-size:36px}
+ .key{min-width:30px;font-size:19px}
+ .letter{min-width:25px}
 }
 </style>
 </head>
 <body>
 <main>
 <header>
-<div class="logo">🎯</div>
+<div class="logo">✏️</div>
 <h1>ADAM ASMACA</h1>
-<div class="subtitle">ONLINE · ARKADAŞLARINLA CANLI OYNA</div>
+<div class="subtitle">KARA TAHTA · ONLINE KELİME OYUNU</div>
 </header>
+
 <div id="app">
 <div class="card center">Oyun yükleniyor...</div>
 </div>
-<footer>Adam Asmaca Online · Çok Oyunculu Kelime Oyunu</footer>
+
+<footer>✦ Arkadaşlarınla aynı tahtada yarış ✦</footer>
 </main>
-<script src="/app.js?v=2" defer></script>
+
+<script src="/app.js?v=3" defer></script>
 </body>
 </html>
