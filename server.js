@@ -9,42 +9,140 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
 const rooms = new Map();
+const MAX_WRONG = 6;
 
 const WORDS = {
-  Hayvanlar: ['KAPLAN','ZÜRAFA','PENGUEN','KAPLUMBAĞA','TİMSAH','YUNUS','KARTAL','KELEBEK','GERGEDAN','PAPAĞAN'],
-  Ülkeler: ['TÜRKİYE','ALMANYA','JAPONYA','BREZİLYA','KANADA','NORVEÇ','İSPANYA','İTALYA','ARJANTİN','PORTEKİZ'],
-  Şehirler: ['İSTANBUL','ANKARA','İZMİR','ANTALYA','TRABZON','ESKİŞEHİR','ÇANAKKALE','SAMSUN','EDİRNE','GAZİANTEP'],
-  Teknoloji: ['BİLGİSAYAR','TELEFON','KLAVYE','YAZILIM','İNTERNET','KULAKLIK','MONİTÖR','ROBOT','KAMERA','TABLET'],
-  Yemekler: ['MANTI','BAKLAVA','LAHMACUN','İSKENDER','KARNIYARIK','KÖFTE','PİLAV','KÜNEFE','MENEMEN','DONDURMA'],
-  Spor: ['FUTBOL','BASKETBOL','VOLEYBOL','TENİS','YÜZME','BİSİKLET','GÜREŞ','ATLETİZM','HENTBOL','BADMİNTON']
+  'Hayvanlar': {
+    Kolay: ['KEDİ','KÖPEK','ASLAN','BALIK','TAVŞAN','AYI','İNEK','AT','KUŞ','FARE'],
+    Orta: ['PAPAĞAN','PENGUEN','ZÜRAFA','KAPLAN','YUNUS','TİMSAH','KELEBEK','KARTAL'],
+    Zor: ['GERGEDAN','KAPLUMBAĞA','BUKALEMUN','ORNİTORENK','AKREP','MÜREKKEP BALIĞI']
+  },
+  'Ülkeler': {
+    Kolay: ['TÜRKİYE','ÇİN','İRAN','MISIR','KANADA','FRANSA','İTALYA'],
+    Orta: ['PORTEKİZ','BREZİLYA','NORVEÇ','ARJANTİN','JAPONYA','İSPANYA'],
+    Zor: ['AZERBAYCAN','KIRGIZİSTAN','MOZAMBİK','MADAGASKAR','ENDONEZYA']
+  },
+  'Şehirler': {
+    Kolay: ['ANKARA','İZMİR','BURSA','ADANA','KONYA','VAN','RİZE'],
+    Orta: ['İSTANBUL','ANTALYA','TRABZON','SAMSUN','EDİRNE','KAYSERİ'],
+    Zor: ['ESKİŞEHİR','ÇANAKKALE','GAZİANTEP','KAHRAMANMARAŞ','AFYONKARAHİSAR']
+  },
+  'Teknoloji': {
+    Kolay: ['ROBOT','TABLET','FARE','EKRAN','KAMERA','RADYO'],
+    Orta: ['BİLGİSAYAR','KLAVYE','MONİTÖR','İNTERNET','YAZILIM','KULAKLIK'],
+    Zor: ['YAPAY ZEKA','MİKROİŞLEMCİ','SİBER GÜVENLİK','ALGORİTMA','KRİPTOGRAFİ']
+  },
+  'Yemekler': {
+    Kolay: ['PİLAV','KÖFTE','ÇORBA','PİZZA','KEK','MANTI'],
+    Orta: ['LAHMACUN','BAKLAVA','MENEMEN','İSKENDER','KÜNEFE','DONDURMA'],
+    Zor: ['KARNIYARIK','İMAMBAYILDI','HÜNKAR BEĞENDİ','SU BÖREĞİ','İÇLİ KÖFTE']
+  },
+  'Spor': {
+    Kolay: ['FUTBOL','TENİS','YÜZME','GOLF','BOKS','KOŞU'],
+    Orta: ['BASKETBOL','VOLEYBOL','BİSİKLET','ATLETİZM','HENTBOL'],
+    Zor: ['BADMİNTON','TRİATLON','ESKRİM','ORİYANTİRİNG','PENTATLON']
+  },
+  'Filmler': {
+    Kolay: ['AVATAR','TİTANİK','ROCKY','BARBİE','JOKER'],
+    Orta: ['GLADYATÖR','BAŞLANGIÇ','YILDIZ SAVAŞLARI','MATRİX'],
+    Zor: ['ESARETİN BEDELİ','YÜZÜKLERİN EFENDİSİ','PARAZİT','AKIL OYUNLARI']
+  },
+  'Diziler': {
+    Kolay: ['FRIENDS','LOST','DARK','LUPIN'],
+    Orta: ['BREAKING BAD','SHERLOCK','STRANGER THINGS','LEYLA İLE MECNUN'],
+    Zor: ['BETTER CALL SAUL','TAHT OYUNLARI','PEAKY BLINDERS']
+  },
+  'Müzik': {
+    Kolay: ['GİTAR','PİYANO','DAVUL','FLÜT','KEMAN'],
+    Orta: ['SAKSAFON','KLARNET','AKORDEON','TROMPET','ÇELLO'],
+    Zor: ['KONTRBAS','KLAVSEN','KONÇERTO','SENFONİ','METRONOM']
+  },
+  'Meslekler': {
+    Kolay: ['DOKTOR','ÖĞRETMEN','POLİS','AŞÇI','PİLOT'],
+    Orta: ['MÜHENDİS','MİMAR','AVUKAT','ECZACI','GAZETECİ'],
+    Zor: ['ARKEOLOG','ASTRONOT','METEOROLOG','NÖROLOG','PALEONTOLOG']
+  },
+  'Doğa': {
+    Kolay: ['DENİZ','ORMAN','DAĞ','GÖL','NEHİR'],
+    Orta: ['YANARDAĞ','ŞELALE','BUZUL','HORTUM','MERCAN'],
+    Zor: ['BİYOÇEŞİTLİLİK','FOTOSENTEZ','EKOSİSTEM','PERMAFROST']
+  },
+  'Tarih': {
+    Kolay: ['OSMANLI','ROMA','KALE','KRAL','SARAY'],
+    Orta: ['RÖNESANS','CUMHURİYET','FETİH','İMPARATORLUK'],
+    Zor: ['MEŞRUTİYET','REFORMASYON','SANAYİ DEVRİMİ','HELENİSTİK']
+  },
+  'Coğrafya': {
+    Kolay: ['KITA','ADA','OVa','DENİZ','VADİ'],
+    Orta: ['YARIMADA','EKVATOR','MERİDYEN','PLATO','BOĞAZ'],
+    Zor: ['TAKIMADA','STRATOSFER','KARSTİK','JEOMORFOLOJİ']
+  },
+  'Bilim': {
+    Kolay: ['ATOM','IŞIK','SES','ENERJİ','HÜCRE'],
+    Orta: ['MOLEKÜL','DENEY','KÜTLEÇEKİM','MİKROSKOP','ELEMENT'],
+    Zor: ['TERMİNDAMİK','ELEKTROMANYETİZMA','KUANTUM','ASTROFİZİK']
+  },
+  'Edebiyat': {
+    Kolay: ['ŞİİR','ROMAN','MASAL','ÖYKÜ','KİTAP'],
+    Orta: ['SONE','DESTAN','HİKAYE','METAFOR','ELEŞTİRİ'],
+    Zor: ['ALEGORİ','POSTMODERNİZM','BİLİNÇ AKIŞI','NATÜRALİZM']
+  },
+  'Mitoloji': {
+    Kolay: ['ZEUS','HERA','THOR','LOKİ','ODİN'],
+    Orta: ['POSEİDON','ATHENA','APOLLON','MEDUSA','HADES'],
+    Zor: ['PROMETHEUS','PERSEPHONE','MİNOTOR','HERAKLES']
+  },
+  'Markalar': {
+    Kolay: ['APPLE','NIKE','ADİDAS','SAMSUNG','TOYOTA'],
+    Orta: ['MICROSOFT','PLAYSTATION','STARBUCKS','PORSCHE'],
+    Zor: ['LAMBORGHİNİ','BALENCIAGA','MASERATI','ABERCROMBIE']
+  },
+  'Genel Kültür': {
+    Kolay: ['GÜNEŞ','AY','DÜNYA','SAAT','TAKVİM'],
+    Orta: ['PİRAMİT','DEMOKRASİ','GALAKSİ','OKYANUS','SATÜRN'],
+    Zor: ['ANTARKTİKA','FİLOZOF','HİYEROGLİF','KARA DELİK','NOBEL ÖDÜLÜ']
+  }
 };
 
-const uid = () => crypto.randomBytes(16).toString('hex');
 const upper = s => String(s || '').trim().toLocaleUpperCase('tr-TR');
+const uid = () => crypto.randomBytes(16).toString('hex');
 
 function reply(res, status, data) {
   res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store'
+    'Content-Type':'application/json; charset=utf-8',
+    'Cache-Control':'no-store'
   });
   res.end(JSON.stringify(data));
 }
 
-function active(r) {
+function currentPlayer(r) {
   return r.players[r.turn % r.players.length];
 }
 
-function nextTurn(r) {
+function advanceTurn(r) {
   r.turn = (r.turn + 1) % r.players.length;
 }
 
-function newRound(r) {
+function hiddenCount(r) {
+  return [...r.word].filter(c =>
+    c !== ' ' && !r.guessed.includes(c)
+  ).length;
+}
+
+function finishRound(r, player, solved) {
+  r.status = 'result';
+  r.winnerId = solved ? player.id : null;
+  r.revealedWord = r.word;
+}
+
+function startRound(r) {
   if (r.round >= r.roundLimit) {
     r.status = 'finished';
     return;
   }
 
   let available = r.words.filter(w => !r.used.includes(w));
+
   if (!available.length) {
     r.used = [];
     available = [...r.words];
@@ -54,9 +152,9 @@ function newRound(r) {
   r.used.push(r.word);
   r.guessed = [];
   r.wrong = 0;
+  r.turn = crypto.randomInt(r.players.length);
   r.winnerId = null;
   r.revealedWord = null;
-  r.turn = crypto.randomInt(r.players.length);
   r.round++;
   r.status = 'playing';
   r.message = 'Yeni kelime başladı!';
@@ -66,34 +164,35 @@ function view(r, token) {
   const me = r.players.find(p => p.token === token);
 
   return {
-    code: r.code,
-    status: r.status,
-    meId: me?.id || null,
-    hostId: r.hostId,
-    players: r.players.map(p => ({
-      id: p.id,
-      name: p.name,
-      score: p.score
+    code:r.code,
+    status:r.status,
+    meId:me?.id || null,
+    hostId:r.hostId,
+    players:r.players.map(p => ({
+      id:p.id,
+      name:p.name,
+      score:p.score
     })),
-    categories: Object.keys(WORDS),
-    category: r.category,
-    round: r.round,
-    roundLimit: r.roundLimit,
-    wrong: r.wrong,
-    maxWrong: 6,
-    guessed: r.guessed,
-    masked: r.word
+    categories:Object.keys(WORDS),
+    category:r.category,
+    difficulty:r.difficulty,
+    round:r.round,
+    roundLimit:r.roundLimit,
+    wrong:r.wrong,
+    maxWrong:MAX_WRONG,
+    guessed:r.guessed,
+    masked:r.word
       ? [...r.word].map(c =>
           c === ' ' ? ' ' :
           r.guessed.includes(c) ? c : '_'
         ).join('')
       : null,
-    turnId: r.status === 'playing' ? active(r).id : null,
-    winnerId: r.winnerId,
-    revealedWord: r.revealedWord,
-    message: r.message,
-    custom: r.custom,
-    wordCount: r.words.length
+    turnId:r.status === 'playing' ? currentPlayer(r).id : null,
+    winnerId:r.winnerId,
+    revealedWord:r.revealedWord,
+    message:r.message,
+    custom:r.custom,
+    wordCount:r.words.length
   };
 }
 
@@ -102,15 +201,16 @@ function api(res, b) {
   let r;
 
   if (action === 'create') {
-    const name = String(b.name || '').trim().slice(0, 22);
-    if (!name) return reply(res, 400, {error:'Adını gir.'});
+    const name = String(b.name || '').trim().slice(0,22);
+
+    if (!name) return reply(res,400,{error:'Adını gir.'});
 
     let code;
     do {
       code = crypto.randomBytes(3).toString('hex').toUpperCase();
     } while (rooms.has(code));
 
-    const p = {id:uid(), token:uid(), name, score:0};
+    const p = {id:uid(),token:uid(),name,score:0};
 
     r = {
       code,
@@ -118,7 +218,8 @@ function api(res, b) {
       players:[p],
       status:'lobby',
       category:'Hayvanlar',
-      words:WORDS.Hayvanlar,
+      difficulty:'Orta',
+      words:WORDS.Hayvanlar.Orta,
       custom:false,
       round:0,
       roundLimit:5,
@@ -133,8 +234,9 @@ function api(res, b) {
       created:Date.now()
     };
 
-    rooms.set(code, r);
-    return reply(res, 200, {
+    rooms.set(code,r);
+
+    return reply(res,200,{
       code,
       token:p.token,
       state:view(r,p.token)
@@ -142,7 +244,9 @@ function api(res, b) {
   }
 
   r = rooms.get(upper(b.code));
-  if (!r) return reply(res,404,{error:'Oda bulunamadı.'});
+
+  if (!r)
+    return reply(res,404,{error:'Oda bulunamadı.'});
 
   if (action === 'join') {
     if (r.status !== 'lobby')
@@ -156,7 +260,11 @@ function api(res, b) {
     if (!name || r.players.some(p =>
       p.name.toLocaleLowerCase('tr-TR') ===
       name.toLocaleLowerCase('tr-TR')
-    )) return reply(res,400,{error:'Farklı bir oyuncu adı gir.'});
+    )) {
+      return reply(res,400,{
+        error:'Farklı bir oyuncu adı gir.'
+      });
+    }
 
     const p = {id:uid(),token:uid(),name,score:0};
     r.players.push(p);
@@ -169,21 +277,31 @@ function api(res, b) {
   }
 
   const p = r.players.find(x => x.token === b.token);
-  if (!p) return reply(res,403,{error:'Oturum geçersiz.'});
+
+  if (!p)
+    return reply(res,403,{error:'Oturum geçersiz.'});
 
   if (action === 'state')
     return reply(res,200,{state:view(r,p.token)});
 
   if (action === 'configure') {
     if (p.id !== r.hostId || r.status !== 'lobby')
-      return reply(res,403,{error:'Yalnızca oda sahibi ayarlayabilir.'});
+      return reply(res,403,{
+        error:'Yalnızca oda sahibi ayarları değiştirebilir.'
+      });
 
     const limit = Number(b.roundLimit);
+    const difficulty = String(b.difficulty || 'Orta');
+
     if (!Number.isInteger(limit) || limit < 1 || limit > 20)
       return reply(res,400,{error:'Tur sayısı 1–20 olmalı.'});
 
+    if (!['Kolay','Orta','Zor'].includes(difficulty))
+      return reply(res,400,{error:'Geçerli zorluk seç.'});
+
     if (b.category === 'Özel') {
       const title = String(b.customTitle || '').trim().slice(0,40);
+
       const words = String(b.customWords || '')
         .split(/\r?\n/)
         .map(upper)
@@ -193,7 +311,7 @@ function api(res, b) {
 
       if (!title || unique.length < 2)
         return reply(res,400,{
-          error:'Özel kategori adı ve en az iki kelime gir.'
+          error:'Özel kategori adı ve en az 2 kelime gir.'
         });
 
       r.category = title;
@@ -204,11 +322,13 @@ function api(res, b) {
         return reply(res,400,{error:'Kategori seç.'});
 
       r.category = b.category;
-      r.words = WORDS[b.category];
+      r.words = WORDS[b.category][difficulty];
       r.custom = false;
     }
 
+    r.difficulty = difficulty;
     r.roundLimit = limit;
+
     return reply(res,200,{state:view(r,p.token)});
   }
 
@@ -219,7 +339,7 @@ function api(res, b) {
         error:'Başlamak için en az 2 oyuncu gerekli.'
       });
 
-    newRound(r);
+    startRound(r);
     return reply(res,200,{state:view(r,p.token)});
   }
 
@@ -227,7 +347,7 @@ function api(res, b) {
     if (r.status !== 'playing')
       return reply(res,409,{error:'Tahminler kapalı.'});
 
-    if (active(r).id !== p.id)
+    if (currentPlayer(r).id !== p.id)
       return reply(res,403,{error:'Sıra sende değil.'});
 
     const value = upper(b.value);
@@ -244,52 +364,49 @@ function api(res, b) {
       if (r.word.includes(value)) {
         const count = [...r.word].filter(c => c === value).length;
         p.score += count * 10;
-        r.message = `${p.name} doğru harf buldu!`;
+        r.message = `${p.name} doğru harf buldu! +${count * 10} puan`;
       } else {
         r.wrong++;
         r.message = `${p.name} yanlış harf söyledi.`;
       }
 
-      const complete = [...r.word].every(c =>
-        c === ' ' || r.guessed.includes(c)
-      );
-
-      if (complete) {
+      if (hiddenCount(r) === 0) {
         p.score += 50;
-        r.status = 'result';
-        r.winnerId = p.id;
-        r.revealedWord = r.word;
-        r.message = `${p.name} kelimeyi tamamladı!`;
-      } else if (r.wrong >= 6) {
-        r.status = 'result';
-        r.winnerId = null;
-        r.revealedWord = r.word;
-        r.message = 'Haklar bitti. Kelime: ' + r.word;
+        finishRound(r,p,true);
+        r.message = `${p.name} kelimeyi tamamladı! +50 puan`;
+      } else if (r.wrong >= MAX_WRONG) {
+        p.score -= 100;
+        finishRound(r,p,false);
+        r.message = `${p.name} adamı astırdı! −100 puan`;
       } else {
-        nextTurn(r);
+        advanceTurn(r);
       }
+
     } else if (b.kind === 'word') {
       if (value.length < 2 || value.length > 35)
         return reply(res,400,{error:'Geçerli kelime gir.'});
 
       if (value === r.word) {
-        p.score += 100;
-        r.status = 'result';
-        r.winnerId = p.id;
-        r.revealedWord = r.word;
-        r.message = `${p.name} kelimeyi bildi! +100 puan`;
-      } else {
-        r.wrong = Math.min(6,r.wrong + 2);
-        r.message = `${p.name} yanlış kelime tahmin etti.`;
+        const bonus = hiddenCount(r) * 10;
+        const points = 100 + bonus;
 
-        if (r.wrong >= 6) {
-          r.status = 'result';
-          r.winnerId = null;
-          r.revealedWord = r.word;
+        p.score += points;
+        finishRound(r,p,true);
+        r.message = `${p.name} kelimeyi bildi! +${points} puan`;
+      } else {
+        // Yanlış kelime tahmini sadece 1 hata sayılır.
+        r.wrong++;
+
+        if (r.wrong >= MAX_WRONG) {
+          p.score -= 100;
+          finishRound(r,p,false);
+          r.message = `${p.name} adamı astırdı! −100 puan`;
         } else {
-          nextTurn(r);
+          r.message = `${p.name} yanlış kelime tahmin etti.`;
+          advanceTurn(r);
         }
       }
+
     } else {
       return reply(res,400,{error:'Geçersiz tahmin.'});
     }
@@ -303,7 +420,7 @@ function api(res, b) {
         error:'Sonraki turu oda sahibi açabilir.'
       });
 
-    newRound(r);
+    startRound(r);
     return reply(res,200,{state:view(r,p.token)});
   }
 
@@ -354,6 +471,7 @@ http.createServer((req,res) => {
   }
 
   let pathname;
+
   try {
     pathname = decodeURIComponent(url.pathname);
   } catch {
@@ -383,6 +501,7 @@ http.createServer((req,res) => {
         'application/octet-stream',
       'Cache-Control':'no-store'
     });
+
     res.end(data);
   });
 }).listen(PORT,'0.0.0.0',() =>
