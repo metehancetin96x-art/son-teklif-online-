@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 3000);
-const ROOT = path.join(__dirname, 'public');
+const ROOT = __dirname;
 const rooms = new Map();
 
 const WORDS = {
