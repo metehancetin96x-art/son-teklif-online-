@@ -1,100 +1,147 @@
+
 'use strict';
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-const PORT = Number(process.env.PORT || 3000);
-const ROOT = __dirname;
-const rooms = new Map();
-const MAX_PLAYERS = 6;
-const ITEMS = [
- ['🧊','Buzdolabı',30000],['📺','Televizyon',25000],['🛋️','Koltuk Takımı',35000],['🧺','Çamaşır Makinesi',22000],['🍽️','Bulaşık Makinesi',19000],
- ['🛏️','Yatak',24000],['🔥','Fırın',18000],['☕','Kahve Makinesi',12000],['🧹','Robot Süpürge',21000],['❄️','Klima',28000],
- ['🪑','Yemek Masası',16000],['💻','Laptop',32000],['📱','Telefon',37000],['🎮','Oyun Konsolu',27000],['🎧','Kulaklık',7500],
- ['📽️','Projeksiyon',17000],['🍳','Airfryer',8500],['🥤','Blender',5500],['🧼','Kurutma Makinesi',24000],['💡','Akıllı Aydınlatma',6500],
- ['🪞','Boy Aynası',5000],['🪴','Salon Bitkisi',3500],['🧯','Güvenlik Seti',4500],['🪟','Perde Takımı',7500],['🧸','Dekor Seti',6000],
- ['🚲','Bisiklet',16500],['📷','Fotoğraf Makinesi',29000],['⌚','Akıllı Saat',14500],['🔊','Ses Sistemi',16000],['🧥','Gardırop',20500],
- ['🧊','Derin Dondurucu',15500],['🍞','Ekmek Makinesi',4000],['🪟','Çalışma Masası',12500],['🛁','Banyo Dolabı',10000],['🧽','Elektrikli Süpürge',13000],
- ['🪭','Vantilatör',4200],['📚','Kitaplık',8500],['🪑','Ofis Koltuğu',11500],['🧃','Meyve Sıkacağı',6200],['📡','Modem',3800]
-];
-const uid = () => crypto.randomBytes(18).toString('hex');
-const send = (res, status, data) => { res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Access-Control-Allow-Origin':'*'});res.end(JSON.stringify(data)); };
-const shuffle = (a) => {a=[...a];for(let i=a.length-1;i>0;i--){let j=crypto.randomInt(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
-function publicRoom(room, token){
- const me = room.players.find(p=>p.token===token);
- const active = room.status==='bidding' ? room.players.filter(p=>p.items.length<5):[];
- return {code:room.code,status:room.status,hostId:room.hostId,meId:me?.id||null,budget:room.budget,auctionIndex:room.index,auctionTotal:room.players.length*5,
- players:room.players.map(p=>({id:p.id,name:p.name,balance:p.balance,items:p.items,submitted:room.status==='bidding' && Object.prototype.hasOwnProperty.call(room.bids,p.id),eligible:p.items.length<5})),
- item:room.status==='bidding'?room.deck[room.index]:null,activeCount:active.length,submittedCount:active.filter(p=>Object.prototype.hasOwnProperty.call(room.bids,p.id)).length,
- myBid: me && Object.prototype.hasOwnProperty.call(room.bids,me.id)?room.bids[me.id]:null,
- lastResult:room.lastResult,history:room.history};
+const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
+const PORT=Number(process.env.PORT||3000),ROOT=__dirname,rooms=new Map();
+const TOPICS={
+ 'Ev Eşyaları':['Buzdolabı','Koltuk','Yatak','Televizyon','Çamaşır Makinesi','Fırın','Bulaşık Makinesi','Masa','Dolap','Klima','Robot Süpürge','Kahve Makinesi'],
+ 'Teknoloji':['iPhone','Laptop','Tablet','Oyun Konsolu','Kulaklık','Akıllı Saat','Kamera','Projektör','Drone','Monitör'],
+ 'Otomobil':['Spor Araba','SUV','Elektrikli Araba','Klasik Araba','Motosiklet','Karavan','Arazi Aracı','Lüks Sedan','Go-Kart','Tekne'],
+ 'Tatil':['Maldivler','Paris','Tokyo','Roma','Bali','Kapadokya','İsviçre','New York','Dubai','Santorini'],
+ 'Yemek':['Pizza','Burger','Sushi','Kebap','Mantı','Baklava','Dondurma','Lahmacun','Pasta','Taco']
+};
+const id=()=>crypto.randomBytes(16).toString('hex');
+const reply=(res,status,data)=>{
+ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
+ res.end(JSON.stringify(data));
+};
+const shuffle=a=>{
+ a=[...a];
+ for(let i=a.length-1;i>0;i--){
+  const j=crypto.randomInt(i+1);
+  [a[i],a[j]]=[a[j],a[i]];
+ }
+ return a;
+};
+function view(r,t){
+ const me=r.players.find(p=>p.token===t);
+ return {
+  code:r.code,status:r.status,hostId:r.hostId,meId:me?.id||null,
+  budget:20,topic:r.topic,topics:Object.keys(TOPICS),
+  players:r.players.map(p=>({id:p.id,name:p.name,balance:p.balance,items:p.items})),
+  item:r.status==='bidding'?r.deck[r.index]:null,
+  auctionIndex:r.index,auctionTotal:r.deck.length,
+  highestBid:r.highestBid,highestBidderId:r.highestBidderId,
+  highestBidderName:r.players.find(p=>p.id===r.highestBidderId)?.name||null,
+  lastResult:r.lastResult,history:r.history
+ };
 }
-function handleApi(req,res,body){
- const {action,code,token}=body;
+function api(res,b){
+ const action=b.action;
+ let r;
  if(action==='create'){
-  const name=String(body.name||'').trim().slice(0,22),budget=Number(body.budget);
-  if(!name || !Number.isInteger(budget)||budget<1000||budget>10000000)return send(res,400,{error:'Geçerli isim ve 1.000–10.000.000 TL bütçe gir.'});
-  let roomCode;do{roomCode=crypto.randomBytes(3).toString('hex').toUpperCase()}while(rooms.has(roomCode));
-  const player={id:uid(),token:uid(),name,balance:budget,items:[]};
-  rooms.set(roomCode,{code:roomCode,status:'lobby',hostId:player.id,budget,players:[player],deck:[],index:0,bids:{},lastResult:null,history:[],createdAt:Date.now()});
-  return send(res,200,{code:roomCode,token:player.token,state:publicRoom(rooms.get(roomCode),player.token)});
+  const name=String(b.name||'').trim().slice(0,22);
+  if(!name)return reply(res,400,{error:'İsim gir.'});
+  let code;
+  do{code=crypto.randomBytes(3).toString('hex').toUpperCase()}while(rooms.has(code));
+  const p={id:id(),token:id(),name,balance:20,items:[]};
+  r={code,hostId:p.id,players:[p],status:'lobby',topic:'Ev Eşyaları',customItems:[],deck:[],index:0,highestBid:0,highestBidderId:null,lastResult:null,history:[],createdAt:Date.now()};
+  rooms.set(code,r);
+  return reply(res,200,{code,token:p.token,state:view(r,p.token)});
  }
- const room=rooms.get(String(code||'').trim().toUpperCase());
- if(!room)return send(res,404,{error:'Oda bulunamadı. Kodunu kontrol et.'});
+ r=rooms.get(String(b.code||'').trim().toUpperCase());
+ if(!r)return reply(res,404,{error:'Oda bulunamadı.'});
  if(action==='join'){
-  if(room.status!=='lobby')return send(res,409,{error:'Oyun başladı, yeni oyuncu katılamaz.'});
-  if(room.players.length>=MAX_PLAYERS)return send(res,409,{error:'Oda dolu (en fazla 6 kişi).'});
-  const name=String(body.name||'').trim().slice(0,22);
-  if(!name)return send(res,400,{error:'Oyuncu adı gir.'});
-  if(room.players.some(p=>p.name.toLocaleLowerCase('tr')===name.toLocaleLowerCase('tr')))return send(res,409,{error:'Bu oyuncu adı zaten kullanılıyor.'});
-  const p={id:uid(),token:uid(),name,balance:room.budget,items:[]};room.players.push(p);
-  return send(res,200,{code:room.code,token:p.token,state:publicRoom(room,p.token)});
+  if(r.status!=='lobby')return reply(res,409,{error:'Oyun başladı.'});
+  if(r.players.length>=6)return reply(res,409,{error:'Oda dolu.'});
+  const name=String(b.name||'').trim().slice(0,22);
+  if(!name||r.players.some(p=>p.name.toLocaleLowerCase('tr')===name.toLocaleLowerCase('tr')))
+   return reply(res,400,{error:'Farklı bir oyuncu adı gir.'});
+  const p={id:id(),token:id(),name,balance:20,items:[]};
+  r.players.push(p);
+  return reply(res,200,{code:r.code,token:p.token,state:view(r,p.token)});
  }
- const p=room.players.find(p=>p.token===token);
- if(!p)return send(res,403,{error:'Bu odaya erişim yetkin yok.'});
- if(action==='state')return send(res,200,{state:publicRoom(room,token)});
+ const p=r.players.find(x=>x.token===b.token);
+ if(!p)return reply(res,403,{error:'Oturum geçersiz.'});
+ if(action==='state')return reply(res,200,{state:view(r,p.token)});
+ if(action==='configure'){
+  if(p.id!==r.hostId||r.status!=='lobby')
+   return reply(res,403,{error:'Yalnızca oda sahibi konu seçebilir.'});
+  const topic=String(b.topic||'').trim().slice(0,60);
+  if(topic==='Özel Konu'){
+   const title=String(b.customTitle||'').trim().slice(0,60);
+   const items=String(b.customItems||'').split(/\r?\n/).map(x=>x.trim().slice(0,70)).filter(Boolean).slice(0,100);
+   if(!title||!items.length)return reply(res,400,{error:'Konu adı ve en az bir ürün gir.'});
+   r.topic=title;r.customItems=items;
+  }else{
+   if(!TOPICS[topic])return reply(res,400,{error:'Konu seç.'});
+   r.topic=topic;r.customItems=[];
+  }
+  return reply(res,200,{state:view(r,p.token)});
+ }
  if(action==='start'){
-  if(p.id!==room.hostId)return send(res,403,{error:'Oyunu sadece oda sahibi başlatabilir.'});
-  if(room.status!=='lobby'||room.players.length<2)return send(res,409,{error:'Başlamak için en az 2 oyuncu gerekiyor.'});
-  room.deck=shuffle(ITEMS).slice(0,room.players.length*5).map((it,i)=>({id:i,emoji:it[0],name:it[1],value:it[2]}));
-  room.status='bidding';return send(res,200,{state:publicRoom(room,token)});
+  if(p.id!==r.hostId||r.status!=='lobby')
+   return reply(res,403,{error:'Başlatma yetkin yok.'});
+  if(r.players.length<2)return reply(res,400,{error:'En az 2 oyuncu gerekli.'});
+  const list=r.customItems.length?r.customItems:TOPICS[r.topic];
+  r.deck=shuffle(list).map((name,i)=>({id:i,name}));
+  r.index=0;r.status='bidding';r.highestBid=0;r.highestBidderId=null;
+  return reply(res,200,{state:view(r,p.token)});
  }
  if(action==='bid'){
-  if(room.status!=='bidding')return send(res,409,{error:'Şu anda teklif verilemiyor.'});
-  if(p.items.length>=5)return send(res,409,{error:'5 eşyanı tamamladın.'});
-  if(Object.prototype.hasOwnProperty.call(room.bids,p.id))return send(res,409,{error:'Bu ürün için teklifini verdin.'});
-  const amount=Number(body.amount);
-  if(!Number.isSafeInteger(amount)||amount<0||amount>p.balance)return send(res,400,{error:'Teklif 0 ile kalan bütçen arasında tam sayı olmalı.'});
-  room.bids[p.id]=amount;
-  const eligible=room.players.filter(x=>x.items.length<5);
-  if(eligible.every(x=>Object.prototype.hasOwnProperty.call(room.bids,x.id))){
-   const highest=Math.max(...eligible.map(x=>room.bids[x.id]));
-   const ties=eligible.filter(x=>room.bids[x.id]===highest);
-   const winner=ties[crypto.randomInt(ties.length)];
-   const item=room.deck[room.index];winner.balance-=highest;winner.items.push({...item,paid:highest});
-   room.lastResult={item,winnerId:winner.id,winnerName:winner.name,price:highest,tied:ties.length>1,bids:eligible.map(x=>({id:x.id,name:x.name,amount:room.bids[x.id]})).sort((a,b)=>b.amount-a.amount)};
-   room.history.push(room.lastResult);room.status='result';
+  if(r.status!=='bidding')return reply(res,409,{error:'Teklifler kapalı.'});
+  const amount=Number(b.amount);
+  if(!Number.isInteger(amount)||amount<=r.highestBid||amount>p.balance)
+   return reply(res,400,{error:`Teklif ${r.highestBid} TL üzerinde ve bütçen dahilinde olmalı.`});
+  if(p.id===r.highestBidderId)return reply(res,409,{error:'Zaten en yüksek teklif sende.'});
+  r.highestBid=amount;r.highestBidderId=p.id;
+  return reply(res,200,{state:view(r,p.token)});
+ }
+ if(action==='close'){
+  if(p.id!==r.hostId||r.status!=='bidding')
+   return reply(res,403,{error:'Satışı yalnızca oda sahibi kapatabilir.'});
+  const item=r.deck[r.index],winner=r.players.find(x=>x.id===r.highestBidderId);
+  if(winner){
+   winner.balance-=r.highestBid;
+   winner.items.push({...item,paid:r.highestBid});
   }
-  return send(res,200,{state:publicRoom(room,token)});
+  r.lastResult={item,winnerId:winner?.id||null,winnerName:winner?.name||null,price:winner?r.highestBid:0};
+  r.history.push(r.lastResult);r.status='result';
+  return reply(res,200,{state:view(r,p.token)});
  }
  if(action==='next'){
-  if(p.id!==room.hostId)return send(res,403,{error:'Sıradaki ürünü yalnızca oda sahibi açabilir.'});
-  if(room.status!=='result')return send(res,409,{error:'Önce mevcut açık artırma bitsin.'});
-  room.index++;room.bids={};room.status=room.index>=room.deck.length?'finished':'bidding';
-  return send(res,200,{state:publicRoom(room,token)});
+  if(p.id!==r.hostId||r.status!=='result')
+   return reply(res,403,{error:'Sonraki ürünü oda sahibi açabilir.'});
+  r.index++;r.highestBid=0;r.highestBidderId=null;
+  r.status=r.index>=r.deck.length||r.players.every(x=>x.balance===0)?'finished':'bidding';
+  return reply(res,200,{state:view(r,p.token)});
  }
- return send(res,400,{error:'Bilinmeyen işlem.'});
+ return reply(res,400,{error:'Bilinmeyen işlem.'});
 }
-const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
+const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
 http.createServer((req,res)=>{
- if(req.url.startsWith('/api')){
-  if(req.method!=='POST')return send(res,405,{error:'POST bekleniyor.'});
-  let str='';req.on('data',x=>{str+=x;if(str.length>15000)req.destroy()});req.on('end',()=>{try{handleApi(req,res,JSON.parse(str||'{}'))}catch(e){console.error(e);send(res,400,{error:'İstek işlenemedi.'})}});return;
- }
- if(req.method!=='GET'){res.writeHead(405);return res.end()}
  const pathname=new URL(req.url,'http://localhost').pathname;
- const file=path.join(ROOT,pathname==='/'?'index.html':pathname);
- if(!file.startsWith(ROOT+path.sep)){res.writeHead(403);return res.end()}
- fs.readFile(file,(err,content)=>{if(err){res.writeHead(404);return res.end('Not found')};res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});res.end(content)})
-}).listen(PORT,'0.0.0.0',()=>console.log(`Açık artırma oyunu: http://localhost:${PORT}`));
-setInterval(()=>{const now=Date.now();for(const [code,room] of rooms)if(now-room.createdAt>24*60*60*1000)rooms.delete(code)},3600000).unref();
+ if(pathname==='/api'){
+  if(req.method!=='POST')return reply(res,405,{error:'POST gerekli.'});
+  let data='';
+  req.on('data',chunk=>{data+=chunk;if(data.length>30000)req.destroy()});
+  req.on('end',()=>{
+   try{api(res,JSON.parse(data||'{}'))}
+   catch(e){console.error(e);reply(res,400,{error:'İstek işlenemedi.'})}
+  });
+  return;
+ }
+ if(req.method!=='GET'){res.writeHead(405);return res.end();}
+ const file=path.resolve(ROOT,'.'+(pathname==='/'?'/index.html':pathname));
+ if(file!==path.join(ROOT,'index.html')&&!file.startsWith(ROOT+path.sep)){
+  res.writeHead(403);return res.end();
+ }
+ fs.readFile(file,(err,content)=>{
+  if(err){res.writeHead(404);return res.end('Not found');}
+  res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});
+  res.end(content);
+ });
+}).listen(PORT,'0.0.0.0',()=>console.log('Oyun çalışıyor: '+PORT));
+setInterval(()=>{
+ for(const [code,r] of rooms)
+  if(Date.now()-r.createdAt>86400000)rooms.delete(code);
+},3600000).unref();
