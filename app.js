@@ -3,9 +3,8 @@
 
 const app = document.getElementById('app');
 const API = '/api';
-const ALPHABET = [...'ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ'];
-
 const SESSION_KEY = 'hangman-session';
+const ALPHABET = [...'ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ'];
 
 let code = '';
 let token = '';
@@ -14,12 +13,18 @@ let busy = false;
 let leaving = false;
 let error = '';
 let lastVersion = '';
+let clockOffset = 0;
+let lastTurnKey = '';
+let celebratedKey = '';
+let audioContext = null;
+let soundEnabled = false;
+let draftSettings = null;
+let confettiTimer = null;
 
 try {
   const saved = JSON.parse(
     localStorage.getItem(SESSION_KEY) || '{}'
   );
-
   code = saved.code || '';
   token = saved.token || '';
 } catch {}
@@ -31,9 +36,224 @@ const esc = value => String(value ?? '').replace(
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#39;'
-  }[c])
+    "'": '&#39;',
+  }[c]
 );
+
+function ensureStyles() {
+  if (document.getElementById('gameExtraStyles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'gameExtraStyles';
+  style.textContent = `
+    .card {
+      padding: 13px !important;
+      margin-bottom: 10px !important;
+    }
+    .card h2 {
+      margin: 3px 0 8px !important;
+      font-size: 1.25rem !important;
+    }
+    .card p {
+      margin: 6px 0 !important;
+    }
+    .topline {
+      margin-bottom: 6px !important;
+    }
+    .hangman {
+      width: 145px !important;
+      height: 145px !important;
+      max-height: 145px !important;
+      margin: 0 auto !important;
+      display: block;
+    }
+    .word {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin: 9px 0 !important;
+    }
+    .word .letter {
+      min-width: 19px;
+      min-height: 28px;
+      padding: 2px;
+      font-size: 1.05rem;
+    }
+    .word .space {
+      min-width: 9px;
+    }
+    .keyboard {
+      display: grid !important;
+      grid-template-columns: repeat(9,minmax(0,1fr));
+      gap: 4px !important;
+      margin: 10px 0 !important;
+    }
+    .keyboard .key {
+      position: relative;
+      width: 100% !important;
+      min-width: 0 !important;
+      min-height: 36px !important;
+      padding: 4px 0 !important;
+      font-size: 1rem !important;
+      line-height: 1.2;
+    }
+    .keyboard .key.used {
+      opacity: .6;
+    }
+    .keyboard .key.used::after {
+      content: '✕';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ff6767;
+      font-size: 1.75rem;
+      font-weight: 900;
+      text-shadow: 0 1px 3px #000;
+      pointer-events: none;
+    }
+    .compact-game form {
+      margin-top: 7px !important;
+    }
+    .compact-game input {
+      margin: 4px 0 !important;
+    }
+    .compact-game .hint {
+      font-size: .76rem;
+      line-height: 1.3;
+    }
+    .timer-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 7px 0;
+      padding: 7px 11px;
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 9px;
+      font-weight: bold;
+    }
+    .timer-number {
+      font-size: 1.5rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .timer-box.urgent {
+      border-color: #ff6868;
+      color: #ff7777;
+      animation: timerPulse .7s infinite alternate;
+    }
+    @keyframes timerPulse {
+      from { opacity: 1; }
+      to { opacity: .6; }
+    }
+    .compact-scoreboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      margin: 6px 0;
+    }
+    .score-chip {
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: .83rem;
+    }
+    .score-chip.active {
+      border-color: #f4d66d;
+    }
+    .score-chip.me {
+      font-weight: bold;
+    }
+    .game-exit {
+      display: block;
+      width: 100%;
+      margin: 8px 0 !important;
+      padding: 8px !important;
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .settings-grid label:first-child {
+      grid-column: 1 / -1;
+    }
+    .settings-grid select {
+      width: 100%;
+    }
+    .confetti-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .confetti-piece {
+      position: absolute;
+      top: -30px;
+      width: 9px;
+      height: 15px;
+      animation: confettiFall linear forwards;
+    }
+    @keyframes confettiFall {
+      0% {
+        transform: translate3d(0,-20px,0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translate3d(var(--drift),110vh,0)
+          rotate(var(--spin));
+        opacity: 0;
+      }
+    }
+    .celebration-banner {
+      position: fixed;
+      z-index: 10000;
+      top: 23%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(88vw,350px);
+      padding: 20px;
+      text-align: center;
+      border: 3px solid #f4d66d;
+      border-radius: 15px;
+      background: #183d2c;
+      color: #fff;
+      box-shadow: 0 12px 45px #0009;
+      animation: celebrationPop .45s ease-out;
+    }
+    @keyframes celebrationPop {
+      from {
+        transform: translateX(-50%) scale(.5);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(-50%) scale(1);
+        opacity: 1;
+      }
+    }
+    .celebration-banner h2 {
+      color: #f4d66d;
+      margin: 8px 0;
+    }
+    @media (max-width: 370px) {
+      .keyboard {
+        grid-template-columns: repeat(8,minmax(0,1fr));
+      }
+      .keyboard .key {
+        min-height: 33px !important;
+      }
+      .hangman {
+        height: 125px !important;
+        width: 125px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 function saveSession() {
   localStorage.setItem(
@@ -44,22 +264,23 @@ function saveSession() {
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
-
   code = '';
   token = '';
   state = null;
   error = '';
   lastVersion = '';
-
+  lastTurnKey = '';
+  celebratedKey = '';
+  draftSettings = null;
+  removeConfetti();
   render();
 }
 
 async function request(action, extra = {}) {
   const response = await fetch(API, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: {'Content-Type': 'application/json'},
+    cache: 'no-store',
     body: JSON.stringify({
       action,
       code,
@@ -69,7 +290,6 @@ async function request(action, extra = {}) {
   });
 
   let data;
-
   try {
     data = await response.json();
   } catch {
@@ -83,6 +303,55 @@ async function request(action, extra = {}) {
   return data;
 }
 
+function syncClock(nextState) {
+  if (typeof nextState?.serverNow === 'number') {
+    clockOffset = nextState.serverNow - Date.now();
+  }
+}
+
+function acceptState(nextState) {
+  if (!nextState) return;
+
+  const oldState = state;
+  const oldStatus = oldState?.status;
+
+  syncClock(nextState);
+  state = nextState;
+  lastVersion = JSON.stringify(nextState);
+
+  if (
+    nextState.status === 'lobby' &&
+    oldStatus !== 'lobby'
+  ) {
+    draftSettings = null;
+  }
+
+  const turnKey =
+    nextState.status === 'playing'
+      ? `${nextState.code}:${nextState.round}:${nextState.turnId}:${nextState.turnEndsAt}`
+      : '';
+
+  if (turnKey && turnKey !== lastTurnKey) {
+    lastTurnKey = turnKey;
+
+    if (nextState.turnId === nextState.meId) {
+      notifyTurn();
+    }
+  }
+
+  const finishKey =
+    nextState.status === 'finished'
+      ? `${nextState.code}:${nextState.round}:${nextState.status}`
+      : '';
+
+  render();
+
+  if (finishKey && celebratedKey !== finishKey) {
+    celebratedKey = finishKey;
+    celebrate();
+  }
+}
+
 async function perform(action, extra = {}) {
   if (busy || leaving) return;
 
@@ -94,12 +363,14 @@ async function perform(action, extra = {}) {
 
     if (data.code) code = data.code;
     if (data.token) token = data.token;
-    if (data.state) state = data.state;
 
     saveSession();
 
-    lastVersion = JSON.stringify(state);
-    render();
+    if (data.state) acceptState(data.state);
+
+    if (action === 'start') {
+      draftSettings = null;
+    }
   } catch (e) {
     error = e.message;
     render();
@@ -111,21 +382,17 @@ async function perform(action, extra = {}) {
 async function leaveRoom() {
   if (busy || leaving) return;
 
-  const confirmed = confirm(
-    'Odadan ayrılıp ana sayfaya dönmek istiyor musun?'
-  );
-
-  if (!confirmed) return;
+  if (!confirm('Odadan ayrılıp ana sayfaya dönmek istiyor musun?')) {
+    return;
+  }
 
   leaving = true;
   busy = true;
-  error = '';
 
   try {
     if (code && token) {
       await request('leave');
     }
-
     clearSession();
   } catch (e) {
     if (
@@ -138,9 +405,132 @@ async function leaveRoom() {
       render();
     }
   } finally {
-    leaving = false;
     busy = false;
+    leaving = false;
   }
+}
+
+function enableSound() {
+  try {
+    const AudioCtx =
+      window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioCtx) return;
+
+    if (!audioContext) {
+      audioContext = new AudioCtx();
+    }
+
+    audioContext.resume();
+    soundEnabled = true;
+  } catch {}
+}
+
+function beep(frequency = 740, duration = .16, delay = 0) {
+  if (!soundEnabled || !audioContext) return;
+
+  try {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const start = audioContext.currentTime + delay;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, start);
+    gain.gain.setValueAtTime(.0001, start);
+    gain.gain.exponentialRampToValueAtTime(.15, start + .015);
+    gain.gain.exponentialRampToValueAtTime(
+      .0001,
+      start + duration
+    );
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start(start);
+    oscillator.stop(start + duration + .02);
+  } catch {}
+}
+
+function notifyTurn() {
+  if (navigator.vibrate) {
+    navigator.vibrate([200, 100, 200]);
+  }
+
+  beep(740, .14);
+  beep(980, .18, .18);
+}
+
+function removeConfetti() {
+  if (confettiTimer) {
+    clearTimeout(confettiTimer);
+    confettiTimer = null;
+  }
+
+  document.getElementById('confettiOverlay')?.remove();
+}
+
+function celebrate() {
+  removeConfetti();
+
+  const sorted = [...state.players].sort(
+    (a, b) => b.score - a.score
+  );
+  const top = sorted[0]?.score ?? 0;
+  const winners = sorted.filter(p => p.score === top);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'confettiOverlay';
+  overlay.className = 'confetti-overlay';
+
+  const colors = [
+    '#f4d66d','#ff6b6b','#63d6b0',
+    '#ffffff','#8ab4ff','#e58aff'
+  ];
+
+  for (let i = 0; i < 110; i++) {
+    const piece = document.createElement('span');
+    piece.className = 'confetti-piece';
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background =
+      colors[Math.floor(Math.random() * colors.length)];
+    piece.style.animationDuration =
+      `${2.4 + Math.random() * 2.5}s`;
+    piece.style.animationDelay =
+      `${Math.random() * 1.2}s`;
+    piece.style.setProperty(
+      '--drift',
+      `${Math.random() * 180 - 90}px`
+    );
+    piece.style.setProperty(
+      '--spin',
+      `${Math.random() * 900 - 450}deg`
+    );
+    overlay.appendChild(piece);
+  }
+
+  const banner = document.createElement('div');
+  banner.className = 'celebration-banner';
+  banner.innerHTML = `
+    <div style="font-size:2.4rem">🏆🎉</div>
+    <h2>${winners.length > 1 ? 'BERABERE!' : 'KAZANAN!'}</h2>
+    <div style="font-size:1.3rem;font-weight:bold">
+      ${winners.map(p => esc(p.name)).join(' & ')}
+    </div>
+    <p>★ ${top} puan</p>
+  `;
+
+  overlay.appendChild(banner);
+  document.body.appendChild(overlay);
+
+  if (navigator.vibrate) {
+    navigator.vibrate([150, 80, 150, 80, 300]);
+  }
+
+  beep(660, .16);
+  beep(880, .16, .18);
+  beep(1100, .35, .36);
+
+  confettiTimer = setTimeout(removeConfetti, 5200);
 }
 
 function notice() {
@@ -150,23 +540,17 @@ function notice() {
 }
 
 function scores() {
-  const players = [...state.players].sort(
-    (a, b) => b.score - a.score
-  );
-
   return `
-    <div class="scoreboard">
-      ${players.map(p => `
-        <div class="player ${p.id === state.meId ? 'me' : ''}">
-          <div class="name">
-            ${esc(p.name)}
-            ${p.id === state.meId ? '✏️' : ''}
+    <div class="compact-scoreboard">
+      ${[...state.players]
+        .sort((a, b) => b.score - a.score)
+        .map(p => `
+          <div class="score-chip
+            ${p.id === state.meId ? 'me' : ''}
+            ${p.id === state.turnId ? 'active' : ''}">
+            ${esc(p.name)} ★ ${p.score}
           </div>
-          <div class="balance">
-            ★ ${p.score}
-          </div>
-        </div>
-      `).join('')}
+        `).join('')}
     </div>
   `;
 }
@@ -174,10 +558,9 @@ function scores() {
 function homeButton() {
   return `
     <button
-      type="button"
-      class="btn secondary"
+      class="btn secondary game-exit"
       id="backHomeBtn"
-      style="margin-top:12px">
+      type="button">
       ⌂ Ana Sayfaya Dön
     </button>
   `;
@@ -189,21 +572,12 @@ function home() {
 
     <div class="card">
       <h2>✏️ Yeni Oyun</h2>
-
-      <p class="muted">
-        Bir oda oluştur, kodu arkadaşlarınla paylaş.
-      </p>
-
       <form id="createForm">
         <label>
           Oyuncu adın
-          <input
-            name="name"
-            maxlength="22"
-            required
-            placeholder="Adını yaz">
+          <input name="name" maxlength="22"
+            required placeholder="Adını yaz">
         </label>
-
         <button class="btn" type="submit">
           Oda Oluştur
         </button>
@@ -212,30 +586,19 @@ function home() {
 
     <div class="card">
       <h2>🔑 Odaya Katıl</h2>
-
       <form id="joinForm">
         <label>
           Oyuncu adın
-          <input
-            name="name"
-            maxlength="22"
-            required
-            placeholder="Adını yaz">
+          <input name="name" maxlength="22"
+            required placeholder="Adını yaz">
         </label>
-
         <label>
           Oda kodu
-          <input
-            name="roomCode"
-            maxlength="6"
-            required
-            placeholder="ABC123"
+          <input name="roomCode" maxlength="6"
+            required placeholder="ABC123"
             style="text-transform:uppercase">
         </label>
-
-        <button
-          class="btn secondary"
-          type="submit">
+        <button class="btn secondary" type="submit">
           Odaya Katıl
         </button>
       </form>
@@ -243,34 +606,30 @@ function home() {
   `;
 }
 
+function currentSettings() {
+  return draftSettings || {
+    category: state.custom ? 'Özel' : state.category,
+    customTitle: state.custom ? state.category : '',
+    customWords: '',
+    difficulty: state.difficulty,
+    roundLimit: state.roundLimit
+  };
+}
+
 function lobby() {
   const host = state.meId === state.hostId;
+  const settings = currentSettings();
 
   return `
     ${notice()}
 
     <div class="card center">
       <span class="tag">BEKLEME ODASI</span>
-
-      <p class="muted">
-        Arkadaşlarına bu kodu gönder.
-      </p>
-
-      <div class="room-code">
-        ${esc(state.code)}
-      </div>
-
-      <button
-        class="small secondary"
-        id="copyCode">
+      <div class="room-code">${esc(state.code)}</div>
+      <button class="small secondary" id="copyCode">
         Kodu Kopyala
       </button>
-
       <p>${state.players.length}/6 oyuncu</p>
-    </div>
-
-    <div class="card">
-      <h2>Oyuncular</h2>
       ${scores()}
     </div>
 
@@ -278,99 +637,81 @@ function lobby() {
       <h2>Oyun Ayarları</h2>
 
       ${host ? `
-        <form id="configForm">
-
-          <label>
-            Kategori
-            <select
-              name="category"
-              id="categorySelect">
-
-              ${state.categories.map(c => `
-                <option
-                  value="${esc(c)}"
-                  ${!state.custom && state.category === c
-                    ? 'selected'
-                    : ''}>
-                  ${esc(c)}
-                </option>
-              `).join('')}
-
-              <option
-                value="Özel"
-                ${state.custom ? 'selected' : ''}>
-                Özel Kategori
-              </option>
-            </select>
-          </label>
-
-          <div
-            id="customFields"
-            style="display:${state.custom ? 'block' : 'none'}">
-
+        <form id="startForm">
+          <div class="settings-grid">
             <label>
-              Özel kategori adı
-              <input
-                name="customTitle"
-                maxlength="40"
-                value="${state.custom ? esc(state.category) : ''}"
-                placeholder="Örneğin: Filmler">
+              Kategori
+              <select name="category" id="categorySelect">
+                ${state.categories.map(c => `
+                  <option value="${esc(c)}"
+                    ${settings.category === c ? 'selected' : ''}>
+                    ${esc(c)}
+                  </option>
+                `).join('')}
+                <option value="Özel"
+                  ${settings.category === 'Özel' ? 'selected' : ''}>
+                  Özel Kategori
+                </option>
+              </select>
             </label>
 
             <label>
-              Kelimeler (her satıra bir kelime)
-              <textarea
-                name="customWords"
-                placeholder="KELİME BİR&#10;KELİME İKİ"></textarea>
+              Zorluk
+              <select name="difficulty">
+                ${['Kolay','Orta','Zor'].map(d => `
+                  <option value="${d}"
+                    ${settings.difficulty === d ? 'selected' : ''}>
+                    ${d}
+                  </option>
+                `).join('')}
+              </select>
+            </label>
+
+            <label>
+              Tur Sayısı
+              <select name="roundLimit">
+                ${Array.from({length:20}, (_, i) => i + 1)
+                  .map(n => `
+                    <option value="${n}"
+                      ${Number(settings.roundLimit) === n
+                        ? 'selected'
+                        : ''}>
+                      ${n} Tur
+                    </option>
+                  `).join('')}
+              </select>
             </label>
           </div>
 
-          <label>
-            Zorluk Seviyesi
-            <select name="difficulty">
-              ${['Kolay', 'Orta', 'Zor'].map(d => `
-                <option
-                  value="${d}"
-                  ${state.difficulty === d ? 'selected' : ''}>
-                  ${d}
-                </option>
-              `).join('')}
-            </select>
-          </label>
+          <div id="customFields"
+            style="display:${settings.category === 'Özel'
+              ? 'block'
+              : 'none'}">
+            <label>
+              Özel kategori adı
+              <input name="customTitle"
+                maxlength="40"
+                value="${esc(settings.customTitle)}"
+                placeholder="Kategori adı">
+            </label>
+            <label>
+              Kelimeler (her satıra bir kelime)
+              <textarea name="customWords"
+                placeholder="KELİME BİR&#10;KELİME İKİ">${esc(settings.customWords)}</textarea>
+            </label>
+          </div>
 
-          <label>
-            Tur Sayısı
-            <select name="roundLimit">
-              ${[3, 5, 7, 10, 15, 20].map(n => `
-                <option
-                  value="${n}"
-                  ${state.roundLimit === n ? 'selected' : ''}>
-                  ${n} Tur
-                </option>
-              `).join('')}
-            </select>
-          </label>
-
-          <button
-            class="btn secondary"
-            type="submit">
-            Ayarları Kaydet
+          <button class="btn" type="submit"
+            ${state.players.length < 2 ? 'disabled' : ''}>
+            ▶ Oyunu Başlat
           </button>
         </form>
-
-        <button
-          class="btn"
-          id="startBtn"
-          ${state.players.length < 2 ? 'disabled' : ''}>
-          Oyunu Başlat
-        </button>
-
       ` : `
         <div class="info">
           Kategori: ${esc(state.category)}<br>
           Zorluk: ${esc(state.difficulty)}<br>
-          Tur Sayısı: ${state.roundLimit}<br>
-          Oda sahibi bekleniyor.
+          Tur: ${state.roundLimit}<br>
+          Oda sahibinin oyunu başlatması bekleniyor.
         </div>
       `}
     </div>
@@ -381,57 +722,50 @@ function lobby() {
 
 function drawing(wrong) {
   return `
-    <svg
-      class="hangman"
-      viewBox="0 0 220 230"
+    <svg class="hangman" viewBox="0 0 220 230"
       aria-label="Adam asmaca çizimi">
-
-      <line class="base"
-        x1="30" y1="210"
-        x2="150" y2="210"/>
-
-      <line class="base"
-        x1="65" y1="210"
-        x2="65" y2="15"/>
-
-      <line class="base"
-        x1="65" y1="15"
-        x2="145" y2="15"/>
-
-      <line class="base"
-        x1="145" y1="15"
-        x2="145" y2="42"/>
-
-      ${wrong >= 1
-        ? '<circle cx="145" cy="65" r="23"/>'
-        : ''}
-
-      ${wrong >= 2
-        ? '<line x1="145" y1="88" x2="145" y2="145"/>'
-        : ''}
-
-      ${wrong >= 3
-        ? '<line x1="145" y1="105" x2="110" y2="128"/>'
-        : ''}
-
-      ${wrong >= 4
-        ? '<line x1="145" y1="105" x2="180" y2="128"/>'
-        : ''}
-
-      ${wrong >= 5
-        ? '<line x1="145" y1="145" x2="112" y2="187"/>'
-        : ''}
-
-      ${wrong >= 6
-        ? '<line x1="145" y1="145" x2="178" y2="187"/>'
-        : ''}
+      <g fill="none" stroke="currentColor"
+        stroke-width="5" stroke-linecap="round">
+        <line x1="30" y1="210" x2="150" y2="210"/>
+        <line x1="65" y1="210" x2="65" y2="15"/>
+        <line x1="65" y1="15" x2="145" y2="15"/>
+        <line x1="145" y1="15" x2="145" y2="42"/>
+        ${wrong >= 1
+          ? '<circle cx="145" cy="65" r="23"/>'
+          : ''}
+        ${wrong >= 2
+          ? '<line x1="145" y1="88" x2="145" y2="145"/>'
+          : ''}
+        ${wrong >= 3
+          ? '<line x1="145" y1="105" x2="110" y2="128"/>'
+          : ''}
+        ${wrong >= 4
+          ? '<line x1="145" y1="105" x2="180" y2="128"/>'
+          : ''}
+        ${wrong >= 5
+          ? '<line x1="145" y1="145" x2="112" y2="187"/>'
+          : ''}
+        ${wrong >= 6
+          ? '<line x1="145" y1="145" x2="178" y2="187"/>'
+          : ''}
+      </g>
     </svg>
   `;
 }
 
+function secondsLeft() {
+  if (!state || !state.turnEndsAt) return 0;
+
+  return Math.max(
+    0,
+    Math.ceil(
+      (state.turnEndsAt - (Date.now() + clockOffset)) / 1000
+    )
+  );
+}
+
 function game() {
   const mine = state.turnId === state.meId;
-
   const current = state.players.find(
     p => p.id === state.turnId
   );
@@ -439,90 +773,83 @@ function game() {
   return `
     ${notice()}
 
-    <div class="topline">
-      <span class="tag">
-        TUR ${state.round}/${state.roundLimit}
-      </span>
-
-      <span class="tag">
-        ${esc(state.difficulty)}
-      </span>
-    </div>
-
-    <div class="card center">
-      <h2>
-        ${mine
-          ? '✏️ Sıra Sende!'
-          : 'Sıra: ' + esc(current?.name || 'Oyuncu')}
-      </h2>
-
-      <p class="muted">
-        ${esc(state.category)}
-      </p>
-
-      ${drawing(state.wrong)}
-
-      <p>
-        Yanlış Tahmin:
-        <strong>
-          ${state.wrong}/${state.maxWrong}
-        </strong>
-      </p>
-
-      <div class="word">
-        ${[...(state.masked || '')].map(c =>
-          c === ' '
-            ? '<span class="letter space"></span>'
-            : `<span class="letter">
-                ${esc(c === '_' ? '' : c)}
-              </span>`
-        ).join('')}
+    <div class="compact-game">
+      <div class="topline">
+        <span class="tag">
+          TUR ${state.round}/${state.roundLimit}
+        </span>
+        <span class="tag">
+          ${esc(state.category)} · ${esc(state.difficulty)}
+        </span>
       </div>
 
-      <p>${esc(state.message)}</p>
+      <div class="card center">
+        <div class="timer-box" id="timerBox">
+          <span>
+            ${mine
+              ? '✏️ SIRA SENDE!'
+              : 'Sıra: ' + esc(current?.name || 'Oyuncu')}
+          </span>
+          <span class="timer-number" id="timerNumber">
+            ${secondsLeft()} sn
+          </span>
+        </div>
 
-      <div class="keyboard">
-        ${ALPHABET.map(c => `
-          <button
-            class="key ${state.guessed.includes(c) ? 'used' : ''}"
-            data-letter="${c}"
-            ${!mine || state.guessed.includes(c)
-              ? 'disabled'
-              : ''}>
-            ${c}
-          </button>
-        `).join('')}
-      </div>
+        ${drawing(state.wrong)}
 
-      <form id="wordForm">
-        <label>
-          Kelimeyi Tahmin Et
+        <p>
+          Yanlış: <strong>${state.wrong}/${state.maxWrong}</strong>
+        </p>
+
+        <div class="word">
+          ${[...(state.masked || '')].map(c =>
+            c === ' '
+              ? '<span class="letter space"></span>'
+              : `<span class="letter">
+                  ${esc(c === '_' ? '' : c)}
+                </span>`
+          ).join('')}
+        </div>
+
+        <p class="muted">${esc(state.message)}</p>
+
+        <div class="keyboard">
+          ${ALPHABET.map(c => `
+            <button
+              type="button"
+              class="key ${state.guessed.includes(c) ? 'used' : ''}"
+              data-letter="${c}"
+              ${!mine || state.guessed.includes(c)
+                ? 'disabled'
+                : ''}>
+              ${c}
+            </button>
+          `).join('')}
+        </div>
+
+        <form id="wordForm">
           <input
             name="word"
             maxlength="35"
-            placeholder="Kelimeyi yaz"
+            placeholder="Kelimeyi tahmin et"
             ${!mine ? 'disabled' : ''}
             required>
-        </label>
 
-        <button
-          class="btn"
-          type="submit"
-          ${!mine ? 'disabled' : ''}>
-          Tahmin Et
-        </button>
-      </form>
+          <button class="btn" type="submit"
+            ${!mine ? 'disabled' : ''}>
+            Kelimeyi Tahmin Et
+          </button>
+        </form>
 
-      <p class="hint">
-        Doğru harf: +10 ·
-        Doğru kelime: +100 ve kapalı harf başına +10 ·
-        Adamı astırmak: −100
-      </p>
-    </div>
+        <p class="hint">
+          Harf +10 · Kelime +100 ve gizli harf başına +10 ·
+          Adamı astıran −100
+        </p>
+      </div>
 
-    <div class="card">
-      <h2>Puan Tablosu</h2>
-      ${scores()}
+      <div class="card center">
+        ${scores()}
+      </div>
     </div>
 
     ${homeButton()}
@@ -533,7 +860,6 @@ function result() {
   const winner = state.players.find(
     p => p.id === state.winnerId
   );
-
   const host = state.meId === state.hostId;
 
   return `
@@ -544,37 +870,31 @@ function result() {
         TUR ${state.round} TAMAMLANDI
       </span>
 
-      <div class="winner">
+      <h2>
         ${winner
           ? '★ ' + esc(winner.name)
           : 'Adam Asıldı!'}
-      </div>
+      </h2>
 
       <p>${esc(state.message)}</p>
-
       <p>Doğru Kelime</p>
 
-      <h1 style="
-        color:var(--yellow);
-        overflow-wrap:anywhere">
+      <h1 style="color:var(--yellow);overflow-wrap:anywhere">
         ${esc(state.revealedWord)}
       </h1>
 
       ${host ? `
         <button class="btn" id="nextBtn">
           ${state.round >= state.roundLimit
-            ? 'Sonuçları Göster'
+            ? '🏆 Final Sonuçları'
             : 'Sonraki Tur'}
         </button>
       ` : `
-        <div class="info">
-          Oda sahibinin sonraki turu açması bekleniyor.
-        </div>
+        <p>Oda sahibi bekleniyor.</p>
       `}
     </div>
 
-    <div class="card">
-      <h2>Puanlar</h2>
+    <div class="card center">
       ${scores()}
     </div>
 
@@ -586,17 +906,15 @@ function finished() {
   const sorted = [...state.players].sort(
     (a, b) => b.score - a.score
   );
-
   const top = sorted[0]?.score ?? 0;
-
-  const winners = sorted.filter(
-    p => p.score === top
-  );
+  const winners = sorted.filter(p => p.score === top);
+  const host = state.meId === state.hostId;
 
   return `
-    <div class="card center">
-      <div class="logo">🏆</div>
+    ${notice()}
 
+    <div class="card center">
+      <div style="font-size:2.6rem">🏆🎉</div>
       <h2>OYUN BİTTİ!</h2>
 
       <div class="winner">
@@ -612,23 +930,34 @@ function finished() {
 
     <div class="card">
       <h2>Final Sıralaması</h2>
-
       ${sorted.map((p, i) => `
         <div class="resultrow">
-          <strong>
-            ${i + 1}. ${esc(p.name)}
-          </strong>
-
+          <strong>${i + 1}. ${esc(p.name)}</strong>
           <strong>★ ${p.score}</strong>
         </div>
       `).join('')}
     </div>
+
+    ${host ? `
+      <button class="btn" id="restartBtn">
+        ↻ Yeni Oyun
+      </button>
+      <p class="muted center">
+        Aynı oyuncularla kategori seçme ekranına dön.
+      </p>
+    ` : `
+      <div class="card center">
+        Oda sahibi yeni oyun başlatabilir.
+      </div>
+    `}
 
     ${homeButton()}
   `;
 }
 
 function render() {
+  ensureStyles();
+
   if (!state) {
     app.innerHTML = home();
   } else {
@@ -638,17 +967,30 @@ function render() {
       result,
       finished
     };
-
     app.innerHTML = (views[state.status] || home)();
   }
 
   bindEvents();
+  updateTimer();
+}
+
+function collectSettings(form) {
+  const f = form.elements;
+
+  return {
+    category: f.category.value,
+    customTitle: f.customTitle.value,
+    customWords: f.customWords.value,
+    difficulty: f.difficulty.value,
+    roundLimit: Number(f.roundLimit.value)
+  };
 }
 
 function bindEvents() {
   document.getElementById('createForm')
     ?.addEventListener('submit', e => {
       e.preventDefault();
+      enableSound();
 
       perform('create', {
         name: e.target.elements.name.value
@@ -658,6 +1000,7 @@ function bindEvents() {
   document.getElementById('joinForm')
     ?.addEventListener('submit', e => {
       e.preventDefault();
+      enableSound();
 
       code = e.target.elements.roomCode.value
         .trim()
@@ -678,41 +1021,40 @@ function bindEvents() {
       }
     });
 
-  document.getElementById('categorySelect')
-    ?.addEventListener('change', e => {
-      const fields = document.getElementById('customFields');
+  const startForm = document.getElementById('startForm');
 
+  if (startForm) {
+    const saveDraft = () => {
+      draftSettings = collectSettings(startForm);
+    };
+
+    startForm.addEventListener('input', saveDraft);
+
+    startForm.addEventListener('change', () => {
+      saveDraft();
+
+      const fields = document.getElementById('customFields');
       if (fields) {
         fields.style.display =
-          e.target.value === 'Özel'
+          draftSettings.category === 'Özel'
             ? 'block'
             : 'none';
       }
     });
 
-  document.getElementById('configForm')
-    ?.addEventListener('submit', e => {
+    startForm.addEventListener('submit', e => {
       e.preventDefault();
-
-      const f = e.target.elements;
-
-      perform('configure', {
-        category: f.category.value,
-        customTitle: f.customTitle.value,
-        customWords: f.customWords.value,
-        difficulty: f.difficulty.value,
-        roundLimit: Number(f.roundLimit.value)
-      });
+      enableSound();
+      saveDraft();
+      perform('start', draftSettings);
     });
-
-  document.getElementById('startBtn')
-    ?.addEventListener('click', () => {
-      perform('start');
-    });
+  }
 
   document.querySelectorAll('[data-letter]')
     .forEach(btn => {
       btn.addEventListener('click', () => {
+        enableSound();
+
         perform('guess', {
           kind: 'letter',
           value: btn.dataset.letter
@@ -723,6 +1065,7 @@ function bindEvents() {
   document.getElementById('wordForm')
     ?.addEventListener('submit', e => {
       e.preventDefault();
+      enableSound();
 
       perform('guess', {
         kind: 'word',
@@ -732,11 +1075,31 @@ function bindEvents() {
 
   document.getElementById('nextBtn')
     ?.addEventListener('click', () => {
+      enableSound();
       perform('next');
+    });
+
+  document.getElementById('restartBtn')
+    ?.addEventListener('click', () => {
+      enableSound();
+      perform('restart');
     });
 
   document.getElementById('backHomeBtn')
     ?.addEventListener('click', leaveRoom);
+}
+
+function updateTimer() {
+  const number = document.getElementById('timerNumber');
+  const box = document.getElementById('timerBox');
+
+  if (!number || !box || state?.status !== 'playing') {
+    return;
+  }
+
+  const seconds = secondsLeft();
+  number.textContent = seconds + ' sn';
+  box.classList.toggle('urgent', seconds <= 10);
 }
 
 async function poll() {
@@ -746,10 +1109,10 @@ async function poll() {
     const data = await request('state');
     const next = JSON.stringify(data.state);
 
+    syncClock(data.state);
+
     if (next !== lastVersion) {
-      lastVersion = next;
-      state = data.state;
-      render();
+      acceptState(data.state);
     }
   } catch (e) {
     if (
@@ -761,6 +1124,10 @@ async function poll() {
   }
 }
 
+document.addEventListener('pointerdown', () => {
+  if (!soundEnabled) enableSound();
+}, {once: true});
+
 render();
 
 if (code && token) {
@@ -768,3 +1135,4 @@ if (code && token) {
 }
 
 setInterval(poll, 1500);
+setInterval(updateTimer, 250);
