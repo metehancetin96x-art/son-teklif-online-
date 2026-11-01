@@ -9,7 +9,11 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
 const rooms = new Map();
+
 const MAX_WRONG = 6;
+const TURN_MS = 60000;
+const LETTERS = /^[A-ZÇĞİÖŞÜ]$/;
+const WORD_PATTERN = /^[A-ZÇĞİÖŞÜ ]{2,35}$/;
 
 const WORDS = {
   'Hayvanlar': {
@@ -40,7 +44,7 @@ const WORDS = {
   'Spor': {
     Kolay: ['FUTBOL','TENİS','YÜZME','GOLF','BOKS','KOŞU'],
     Orta: ['BASKETBOL','VOLEYBOL','BİSİKLET','ATLETİZM','HENTBOL'],
-    Zor: ['BADMİNTON','ÜÇLÜ YARIŞ','ESKRİM','YÖN BULMA','BEŞLİ YARIŞ']
+    Zor: ['BADMİNTON','ESKRİM','ATLETİZM','GÜREŞ','HALTER']
   },
   'Filmler': {
     Kolay: ['TİTANİK','HABABAM SINIFI','GORA','AROG','BABAM VE OĞLUM'],
@@ -70,7 +74,7 @@ const WORDS = {
   'Tarih': {
     Kolay: ['OSMANLI','ROMA','KALE','KRAL','SARAY'],
     Orta: ['RÖNESANS','CUMHURİYET','FETİH','İMPARATORLUK'],
-    Zor: ['MEŞRUTİYET','YENİDEN DOĞUŞ','SANAYİ DEVRİMİ','HELENİSTİK']
+    Zor: ['MEŞRUTİYET','SANAYİ DEVRİMİ','HELENİSTİK','KURTULUŞ SAVAŞI']
   },
   'Coğrafya': {
     Kolay: ['KITA','ADA','OVA','DENİZ','VADİ'],
@@ -104,7 +108,9 @@ const WORDS = {
   }
 };
 
-const upper = s => String(s || '').trim().toLocaleUpperCase('tr-TR');
+const upper = s =>
+  String(s || '').trim().toLocaleUpperCase('tr-TR');
+
 const uid = () => crypto.randomBytes(16).toString('hex');
 
 function reply(res, status, data) {
@@ -116,11 +122,13 @@ function reply(res, status, data) {
 }
 
 function currentPlayer(r) {
-  return r.players[r.turn % r.players.length];
+  return r.players[r.turn] || null;
 }
 
 function advanceTurn(r) {
+  if (!r.players.length) return;
   r.turn = (r.turn + 1) % r.players.length;
+  r.turnEndsAt = Date.now() + TURN_MS;
 }
 
 function hiddenCount(r) {
@@ -131,13 +139,15 @@ function hiddenCount(r) {
 
 function finishRound(r, player, solved) {
   r.status = 'result';
-  r.winnerId = solved ? player.id : null;
+  r.winnerId = solved && player ? player.id : null;
   r.revealedWord = r.word;
+  r.turnEndsAt = null;
 }
 
 function startRound(r) {
   if (r.round >= r.roundLimit) {
     r.status = 'finished';
+    r.turnEndsAt = null;
     return;
   }
 
@@ -157,10 +167,53 @@ function startRound(r) {
   r.revealedWord = null;
   r.round++;
   r.status = 'playing';
+  r.turnEndsAt = Date.now() + TURN_MS;
   r.message = 'Yeni kelime başladı!';
 }
 
+function processTimeout(r) {
+  if (r.status !== 'playing' || !r.turnEndsAt) return;
+
+  if (r.players.length < 2) {
+    r.status = 'finished';
+    r.turnEndsAt = null;
+    return;
+  }
+
+  // Geçmiş süreleri sunucuda işle.
+  // Böylece sekme kapalı olsa da süre durmaz.
+  let steps = 0;
+
+  while (
+    r.status === 'playing' &&
+    r.turnEndsAt &&
+    Date.now() >= r.turnEndsAt &&
+    steps < 100
+  ) {
+    const player = currentPlayer(r);
+    const previousDeadline = r.turnEndsAt;
+
+    r.wrong++;
+
+    if (r.wrong >= MAX_WRONG) {
+      player.score -= 100;
+      finishRound(r, player, false);
+      r.message =
+        `${player.name} süreyi doldurdu ve adamı astırdı! −100 puan`;
+    } else {
+      r.turn = (r.turn + 1) % r.players.length;
+      r.turnEndsAt = previousDeadline + TURN_MS;
+      r.message =
+        `${player.name} süreyi doldurdu. Çizim ilerledi.`;
+    }
+
+    steps++;
+  }
+}
+
 function view(r, token) {
+  processTimeout(r);
+
   const me = r.players.find(p => p.token === token);
 
   return {
@@ -187,7 +240,13 @@ function view(r, token) {
           r.guessed.includes(c) ? c : '_'
         ).join('')
       : null,
-    turnId: r.status === 'playing' ? currentPlayer(r).id : null,
+    turnId: r.status === 'playing'
+      ? currentPlayer(r)?.id
+      : null,
+    turnEndsAt: r.status === 'playing'
+      ? r.turnEndsAt
+      : null,
+    serverNow: Date.now(),
     winnerId: r.winnerId,
     revealedWord: r.revealedWord,
     message: r.message,
@@ -200,11 +259,12 @@ function removePlayer(r, player) {
   const index = r.players.findIndex(p => p.id === player.id);
   if (index < 0) return;
 
-  const wasTurn = r.status === 'playing' && r.turn === index;
+  const wasTurn =
+    r.status === 'playing' && r.turn === index;
 
   r.players.splice(index, 1);
 
-  if (r.players.length === 0) {
+  if (!r.players.length) {
     rooms.delete(r.code);
     return;
   }
@@ -214,21 +274,97 @@ function removePlayer(r, player) {
   }
 
   if (r.status === 'playing') {
-    if (r.players.length === 1) {
+    if (r.players.length < 2) {
       r.status = 'finished';
+      r.turnEndsAt = null;
       r.message = 'Diğer oyuncular ayrıldı. Oyun sona erdi.';
     } else {
       if (index < r.turn) r.turn--;
-      if (r.turn >= r.players.length) r.turn = 0;
+
+      if (r.turn >= r.players.length) {
+        r.turn = 0;
+      }
 
       if (wasTurn) {
-        r.message = `${player.name} oyundan ayrıldı. Sıra sonraki oyuncuda.`;
+        r.turnEndsAt = Date.now() + TURN_MS;
+        r.message =
+          `${player.name} ayrıldı. Sıra sonraki oyuncuda.`;
       }
     }
   }
 
-  if (r.status === 'result' && r.winnerId === player.id) {
+  if (r.winnerId === player.id) {
     r.winnerId = null;
+  }
+}
+
+function configure(r, b) {
+  const limit = Number(b.roundLimit);
+  const difficulty = String(b.difficulty || 'Orta');
+
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+    throw new Error('Tur sayısı 1–20 olmalı.');
+  }
+
+  if (!['Kolay','Orta','Zor'].includes(difficulty)) {
+    throw new Error('Geçerli zorluk seç.');
+  }
+
+  let category;
+  let words;
+  let custom = false;
+
+  if (b.category === 'Özel') {
+    const title = String(b.customTitle || '').trim().slice(0, 40);
+
+    const unique = [...new Set(
+      String(b.customWords || '')
+        .split(/\r?\n/)
+        .map(upper)
+        .filter(w => WORD_PATTERN.test(w))
+    )].slice(0, 100);
+
+    if (!title || unique.length < 2) {
+      throw new Error(
+        'Özel kategori adı ve en az 2 kelime gir.'
+      );
+    }
+
+    category = title;
+    words = unique;
+    custom = true;
+  } else {
+    if (!WORDS[b.category]) {
+      throw new Error('Kategori seç.');
+    }
+
+    category = b.category;
+    words = WORDS[category][difficulty];
+  }
+
+  r.category = category;
+  r.words = [...words];
+  r.custom = custom;
+  r.difficulty = difficulty;
+  r.roundLimit = limit;
+  r.used = [];
+}
+
+function resetGame(r) {
+  r.status = 'lobby';
+  r.round = 0;
+  r.turn = 0;
+  r.word = null;
+  r.guessed = [];
+  r.wrong = 0;
+  r.used = [];
+  r.winnerId = null;
+  r.revealedWord = null;
+  r.turnEndsAt = null;
+  r.message = 'Yeni oyun için kategori seçin.';
+
+  for (const p of r.players) {
+    p.score = 0;
   }
 }
 
@@ -238,14 +374,23 @@ function api(res, b) {
 
   if (action === 'create') {
     const name = String(b.name || '').trim().slice(0, 22);
-    if (!name) return reply(res, 400, {error: 'Adını gir.'});
+
+    if (!name) {
+      return reply(res, 400, {error: 'Adını gir.'});
+    }
 
     let code;
+
     do {
       code = crypto.randomBytes(3).toString('hex').toUpperCase();
     } while (rooms.has(code));
 
-    const p = {id: uid(), token: uid(), name, score: 0};
+    const p = {
+      id: uid(),
+      token: uid(),
+      name,
+      score: 0
+    };
 
     r = {
       code,
@@ -254,11 +399,12 @@ function api(res, b) {
       status: 'lobby',
       category: 'Hayvanlar',
       difficulty: 'Orta',
-      words: WORDS.Hayvanlar.Orta,
+      words: [...WORDS.Hayvanlar.Orta],
       custom: false,
       round: 0,
       roundLimit: 5,
       turn: 0,
+      turnEndsAt: null,
       word: null,
       guessed: [],
       wrong: 0,
@@ -280,14 +426,18 @@ function api(res, b) {
 
   r = rooms.get(upper(b.code));
 
-  if (!r) return reply(res, 404, {error: 'Oda bulunamadı.'});
+  if (!r) {
+    return reply(res, 404, {error: 'Oda bulunamadı.'});
+  }
 
   if (action === 'join') {
-    if (r.status !== 'lobby')
+    if (r.status !== 'lobby') {
       return reply(res, 409, {error: 'Oyun başladı.'});
+    }
 
-    if (r.players.length >= 6)
+    if (r.players.length >= 6) {
       return reply(res, 409, {error: 'Oda dolu.'});
+    }
 
     const name = String(b.name || '').trim().slice(0, 22);
 
@@ -300,7 +450,13 @@ function api(res, b) {
       });
     }
 
-    const p = {id: uid(), token: uid(), name, score: 0};
+    const p = {
+      id: uid(),
+      token: uid(),
+      name,
+      score: 0
+    };
+
     r.players.push(p);
 
     return reply(res, 200, {
@@ -312,11 +468,15 @@ function api(res, b) {
 
   const p = r.players.find(x => x.token === b.token);
 
-  if (!p)
+  if (!p) {
     return reply(res, 403, {error: 'Oturum geçersiz.'});
+  }
 
-  if (action === 'state')
+  processTimeout(r);
+
+  if (action === 'state') {
     return reply(res, 200, {state: view(r, p.token)});
+  }
 
   if (action === 'leave') {
     removePlayer(r, p);
@@ -324,88 +484,75 @@ function api(res, b) {
   }
 
   if (action === 'configure') {
-    if (p.id !== r.hostId || r.status !== 'lobby')
+    if (p.id !== r.hostId || r.status !== 'lobby') {
       return reply(res, 403, {
-        error: 'Yalnızca oda sahibi ayarları değiştirebilir.'
+        error: 'Ayarları yalnızca oda sahibi değiştirebilir.'
       });
-
-    const limit = Number(b.roundLimit);
-    const difficulty = String(b.difficulty || 'Orta');
-
-    if (!Number.isInteger(limit) || limit < 1 || limit > 20)
-      return reply(res, 400, {error: 'Tur sayısı 1–20 olmalı.'});
-
-    if (!['Kolay', 'Orta', 'Zor'].includes(difficulty))
-      return reply(res, 400, {error: 'Geçerli zorluk seç.'});
-
-    if (b.category === 'Özel') {
-      const title = String(b.customTitle || '').trim().slice(0, 40);
-
-      const words = String(b.customWords || '')
-        .split(/\r?\n/)
-        .map(upper)
-        .filter(w => /^[A-ZÇĞİÖŞÜ ]{2,35}$/.test(w));
-
-      const unique = [...new Set(words)].slice(0, 100);
-
-      if (!title || unique.length < 2)
-        return reply(res, 400, {
-          error: 'Özel kategori adı ve en az 2 kelime gir.'
-        });
-
-      r.category = title;
-      r.words = unique;
-      r.custom = true;
-    } else {
-      if (!WORDS[b.category])
-        return reply(res, 400, {error: 'Kategori seç.'});
-
-      r.category = b.category;
-      r.words = WORDS[b.category][difficulty];
-      r.custom = false;
     }
 
-    r.difficulty = difficulty;
-    r.roundLimit = limit;
+    try {
+      configure(r, b);
+    } catch (e) {
+      return reply(res, 400, {error: e.message});
+    }
 
     return reply(res, 200, {state: view(r, p.token)});
   }
 
   if (action === 'start') {
-    if (p.id !== r.hostId || r.status !== 'lobby' ||
-        r.players.length < 2)
+    if (p.id !== r.hostId || r.status !== 'lobby') {
+      return reply(res, 403, {
+        error: 'Oyunu yalnızca oda sahibi başlatabilir.'
+      });
+    }
+
+    if (r.players.length < 2) {
       return reply(res, 409, {
         error: 'Başlamak için en az 2 oyuncu gerekli.'
       });
+    }
+
+    // Seçili ayarları kaydet ve oyunu tek işlemde başlat.
+    try {
+      configure(r, b);
+    } catch (e) {
+      return reply(res, 400, {error: e.message});
+    }
 
     startRound(r);
+
     return reply(res, 200, {state: view(r, p.token)});
   }
 
   if (action === 'guess') {
-    if (r.status !== 'playing')
+    if (r.status !== 'playing') {
       return reply(res, 409, {error: 'Tahminler kapalı.'});
+    }
 
-    if (currentPlayer(r).id !== p.id)
+    if (currentPlayer(r)?.id !== p.id) {
       return reply(res, 403, {error: 'Sıra sende değil.'});
+    }
 
     const value = upper(b.value);
 
     if (b.kind === 'letter') {
-      if (!/^[A-ZÇĞİÖŞÜ]$/.test(value))
+      if (!LETTERS.test(value)) {
         return reply(res, 400, {error: 'Tek harf gir.'});
+      }
 
-      if (r.guessed.includes(value))
+      if (r.guessed.includes(value)) {
         return reply(res, 409, {
           error: 'Bu harf zaten denendi.'
         });
+      }
 
       r.guessed.push(value);
 
       if (r.word.includes(value)) {
         const count = [...r.word].filter(c => c === value).length;
         p.score += count * 10;
-        r.message = `${p.name} doğru harf buldu! +${count * 10} puan`;
+        r.message =
+          `${p.name} doğru harf buldu! +${count * 10} puan`;
       } else {
         r.wrong++;
         r.message = `${p.name} yanlış harf söyledi.`;
@@ -414,33 +561,41 @@ function api(res, b) {
       if (hiddenCount(r) === 0) {
         p.score += 50;
         finishRound(r, p, true);
-        r.message = `${p.name} kelimeyi tamamladı! +50 puan`;
+        r.message =
+          `${p.name} kelimeyi tamamladı! +50 puan`;
       } else if (r.wrong >= MAX_WRONG) {
         p.score -= 100;
         finishRound(r, p, false);
-        r.message = `${p.name} adamı astırdı! −100 puan`;
+        r.message =
+          `${p.name} adamı astırdı! −100 puan`;
       } else {
         advanceTurn(r);
       }
 
     } else if (b.kind === 'word') {
-      if (value.length < 2 || value.length > 35)
-        return reply(res, 400, {error: 'Geçerli kelime gir.'});
+      if (!WORD_PATTERN.test(value)) {
+        return reply(res, 400, {
+          error: 'Geçerli bir kelime gir.'
+        });
+      }
 
       if (value === r.word) {
         const points = 100 + hiddenCount(r) * 10;
         p.score += points;
         finishRound(r, p, true);
-        r.message = `${p.name} kelimeyi bildi! +${points} puan`;
+        r.message =
+          `${p.name} kelimeyi bildi! +${points} puan`;
       } else {
         r.wrong++;
 
         if (r.wrong >= MAX_WRONG) {
           p.score -= 100;
           finishRound(r, p, false);
-          r.message = `${p.name} adamı astırdı! −100 puan`;
+          r.message =
+            `${p.name} adamı astırdı! −100 puan`;
         } else {
-          r.message = `${p.name} yanlış kelime tahmin etti.`;
+          r.message =
+            `${p.name} yanlış kelime tahmin etti.`;
           advanceTurn(r);
         }
       }
@@ -452,12 +607,26 @@ function api(res, b) {
   }
 
   if (action === 'next') {
-    if (p.id !== r.hostId || r.status !== 'result')
+    if (p.id !== r.hostId || r.status !== 'result') {
       return reply(res, 403, {
         error: 'Sonraki turu oda sahibi açabilir.'
       });
+    }
 
     startRound(r);
+
+    return reply(res, 200, {state: view(r, p.token)});
+  }
+
+  if (action === 'restart') {
+    if (p.id !== r.hostId || r.status !== 'finished') {
+      return reply(res, 403, {
+        error: 'Yeni oyunu oda sahibi başlatabilir.'
+      });
+    }
+
+    resetGame(r);
+
     return reply(res, 200, {state: view(r, p.token)});
   }
 
@@ -480,14 +649,18 @@ http.createServer((req, res) => {
   }
 
   if (url.pathname === '/api') {
-    if (req.method !== 'POST')
+    if (req.method !== 'POST') {
       return reply(res, 405, {error: 'POST gerekli.'});
+    }
 
     let body = '';
 
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 40000) req.destroy();
+
+      if (body.length > 40000) {
+        req.destroy();
+      }
     });
 
     req.on('end', () => {
@@ -495,8 +668,10 @@ http.createServer((req, res) => {
         api(res, JSON.parse(body || '{}'));
       } catch (e) {
         console.error(e);
-        if (!res.headersSent)
+
+        if (!res.headersSent) {
           reply(res, 500, {error: 'Sunucu hatası.'});
+        }
       }
     });
 
@@ -522,8 +697,10 @@ http.createServer((req, res) => {
     '.' + (pathname === '/' ? '/index.html' : pathname)
   );
 
-  if (file !== path.join(ROOT, 'index.html') &&
-      !file.startsWith(ROOT + path.sep)) {
+  if (
+    file !== path.join(ROOT, 'index.html') &&
+    !file.startsWith(ROOT + path.sep)
+  ) {
     res.writeHead(403);
     return res.end();
   }
@@ -542,13 +719,17 @@ http.createServer((req, res) => {
 
     res.end(data);
   });
-}).listen(PORT, '0.0.0.0', () =>
-  console.log('Adam Asmaca çalışıyor: ' + PORT)
-);
+}).listen(PORT, '0.0.0.0', () => {
+  console.log('Adam Asmaca çalışıyor: ' + PORT);
+});
 
+// Süreler oyuncular istek göndermese de ilerler.
 setInterval(() => {
   for (const [code, r] of rooms) {
-    if (Date.now() - r.created > 86400000)
+    processTimeout(r);
+
+    if (Date.now() - r.created > 86400000) {
       rooms.delete(code);
+    }
   }
-}, 3600000).unref();
+}, 1000).unref();
