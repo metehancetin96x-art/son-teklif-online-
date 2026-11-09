@@ -6,15 +6,26 @@ const API = '/api';
 const SESSION_KEY = 'hangman-session';
 const ALPHABET = [...'ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ'];
 
-let code = '', token = '', state = null;
-let busy = false, leaving = false, error = '';
-let lastVersion = '', clockOffset = 0;
-let lastTurnKey = '', celebratedKey = '';
-let audioContext = null, soundEnabled = false;
-let draftSettings = null, confettiTimer = null;
+let code = '';
+let token = '';
+let state = null;
+let busy = false;
+let leaving = false;
+let error = '';
+let lastVersion = '';
+let clockOffset = 0;
+let lastTurnKey = '';
+let celebratedKey = '';
+let audioContext = null;
+let soundEnabled = false;
+let draftSettings = null;
+let confettiTimer = null;
+let pollRunning = false;
 
 try {
-  const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+  const saved = JSON.parse(
+    localStorage.getItem(SESSION_KEY) || '{}'
+  );
   code = saved.code || '';
   token = saved.token || '';
 } catch (_) {}
@@ -41,45 +52,55 @@ function ensureStyles() {
       padding: 11px !important;
       margin-bottom: 8px !important;
     }
+
     .card h2 {
       margin: 2px 0 7px !important;
       font-size: 1.25rem !important;
     }
+
     .card p {
       margin: 5px 0 !important;
     }
+
     .topline {
       margin-bottom: 6px !important;
     }
+
     .hangman {
-      width: 140px !important;
-      height: 140px !important;
+      width: 150px !important;
+      height: 150px !important;
       display: block;
       margin: 0 auto !important;
     }
+
     .word {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
       gap: 5px;
-      margin: 10px 0 !important;
+      margin: 12px 0 !important;
     }
+
     .word .letter {
-      min-width: 26px;
-      min-height: 37px;
-      padding: 3px;
-      font-size: 1.3rem;
-      border-bottom-width: 3px;
+      min-width: 27px !important;
+      min-height: 39px !important;
+      padding: 3px !important;
+      font-size: 1.35rem !important;
+      border-bottom: 3px solid #fff8e6 !important;
     }
+
     .word .space {
-      min-width: 12px;
+      min-width: 13px !important;
+      border-bottom: none !important;
     }
+
     .keyboard {
       display: grid !important;
       grid-template-columns: repeat(9, minmax(0, 1fr));
       gap: 4px !important;
       margin: 9px 0 !important;
     }
+
     .keyboard .key {
       position: relative;
       width: 100% !important;
@@ -89,9 +110,11 @@ function ensureStyles() {
       font-size: 1rem !important;
       line-height: 1.2;
     }
+
     .keyboard .key.used {
       opacity: .65;
     }
+
     .keyboard .key.used::after {
       content: '✕';
       position: absolute;
@@ -105,16 +128,20 @@ function ensureStyles() {
       text-shadow: 0 1px 3px #000;
       pointer-events: none;
     }
+
     .compact-game form {
       margin-top: 6px !important;
     }
+
     .compact-game input {
       margin: 4px 0 !important;
     }
+
     .compact-game .hint {
       font-size: .76rem;
       line-height: 1.3;
     }
+
     .timer-box {
       display: flex;
       align-items: center;
@@ -126,19 +153,23 @@ function ensureStyles() {
       border-radius: 9px;
       font-weight: bold;
     }
+
     .timer-number {
       font-size: 1.5rem;
       font-variant-numeric: tabular-nums;
     }
+
     .timer-box.urgent {
       border-color: #ff6868;
       color: #ff7777;
       animation: timerPulse .7s infinite alternate;
     }
+
     @keyframes timerPulse {
       from { opacity: 1; }
       to { opacity: .6; }
     }
+
     .compact-scoreboard {
       display: flex;
       flex-wrap: wrap;
@@ -146,35 +177,43 @@ function ensureStyles() {
       justify-content: center;
       margin: 5px 0;
     }
+
     .score-chip {
       border: 1px solid #ffffff55;
       border-radius: 8px;
       padding: 4px 7px;
       font-size: .84rem;
     }
+
     .score-chip.active {
       border-color: #f4d66d;
     }
+
     .score-chip.me {
       font-weight: bold;
     }
+
     .game-exit {
       display: block;
       width: 100%;
       margin: 8px 0 !important;
       padding: 8px !important;
     }
+
     .settings-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 7px;
     }
+
     .settings-grid label:first-child {
       grid-column: 1 / -1;
     }
+
     .settings-grid select {
       width: 100%;
     }
+
     .confetti-overlay {
       position: fixed;
       inset: 0;
@@ -182,6 +221,7 @@ function ensureStyles() {
       overflow: hidden;
       pointer-events: none;
     }
+
     .confetti-piece {
       position: absolute;
       top: -30px;
@@ -189,6 +229,7 @@ function ensureStyles() {
       height: 15px;
       animation: confettiFall linear forwards;
     }
+
     @keyframes confettiFall {
       0% {
         transform: translate3d(0,-20px,0) rotate(0deg);
@@ -200,6 +241,7 @@ function ensureStyles() {
         opacity: 0;
       }
     }
+
     .celebration-banner {
       position: fixed;
       z-index: 10000;
@@ -216,6 +258,7 @@ function ensureStyles() {
       box-shadow: 0 12px 45px #0009;
       animation: celebrationPop .45s ease-out;
     }
+
     @keyframes celebrationPop {
       from {
         transform: translateX(-50%) scale(.5);
@@ -226,24 +269,29 @@ function ensureStyles() {
         opacity: 1;
       }
     }
+
     .celebration-banner h2 {
       color: #f4d66d;
       margin: 8px 0;
     }
+
     @media (max-width:370px) {
       .keyboard {
         grid-template-columns: repeat(8,minmax(0,1fr));
       }
+
       .keyboard .key {
         min-height: 32px !important;
       }
+
       .hangman {
-        height: 125px !important;
-        width: 125px !important;
+        width: 135px !important;
+        height: 135px !important;
       }
+
       .word .letter {
-        min-width: 23px;
-        min-height: 34px;
+        min-width: 24px !important;
+        min-height: 36px !important;
       }
     }
   `;
@@ -266,6 +314,7 @@ function removeConfetti() {
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
+
   code = '';
   token = '';
   state = null;
@@ -274,6 +323,7 @@ function clearSession() {
   lastTurnKey = '';
   celebratedKey = '';
   draftSettings = null;
+
   removeConfetti();
   render();
 }
@@ -314,14 +364,112 @@ function syncClock(s) {
   }
 }
 
-// Sunucu saati her sorguda değişir.
-// Bu alanı karşılaştırmaya katmıyoruz.
-// Böylece ekran gereksiz yere yenilenmez.
+// Sunucu saati değiştiğinde ekranı yenileme.
 function stateSignature(s) {
   if (!s) return '';
 
   const { serverNow, ...stableState } = s;
   return JSON.stringify(stableState);
+}
+
+function isEditingLobby() {
+  if (state?.status !== 'lobby') return false;
+
+  const form = document.getElementById('startForm');
+  const active = document.activeElement;
+
+  return !!(
+    form &&
+    active &&
+    form.contains(active) &&
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(
+      active.tagName
+    )
+  );
+}
+
+function isEditingWord() {
+  if (state?.status !== 'playing') return false;
+
+  const input = document.querySelector(
+    '#wordForm input[name="word"]'
+  );
+
+  return !!(
+    input &&
+    document.activeElement === input
+  );
+}
+
+// Ekranı yeniden oluştururken formun durumunu koru.
+function captureInput() {
+  const active = document.activeElement;
+
+  if (!active || !app.contains(active)) return null;
+
+  const id = active.id;
+  const name = active.name;
+  const value = active.value;
+
+  let selectionStart = null;
+  let selectionEnd = null;
+
+  try {
+    selectionStart = active.selectionStart;
+    selectionEnd = active.selectionEnd;
+  } catch (_) {}
+
+  return {
+    id,
+    name,
+    value,
+    selectionStart,
+    selectionEnd,
+    tag: active.tagName
+  };
+}
+
+function restoreInput(saved) {
+  if (!saved) return;
+
+  let element = null;
+
+  if (saved.id) {
+    element = document.getElementById(saved.id);
+  }
+
+  if (!element && saved.name) {
+    element = Array.from(
+      app.querySelectorAll('[name]')
+    ).find(el => el.name === saved.name);
+  }
+
+  if (!element || element.disabled) return;
+
+  if (
+    saved.tag === 'INPUT' ||
+    saved.tag === 'TEXTAREA'
+  ) {
+    element.value = saved.value;
+  }
+
+  // iPhone'da odak gereksiz yere kaybolmasın.
+  // SELECT menüsünü açıkken yeniden oluşturmuyoruz.
+  if (saved.tag !== 'SELECT') {
+    try {
+      element.focus({ preventScroll: true });
+
+      if (
+        saved.selectionStart !== null &&
+        saved.selectionEnd !== null
+      ) {
+        element.setSelectionRange(
+          saved.selectionStart,
+          saved.selectionEnd
+        );
+      }
+    } catch (_) {}
+  }
 }
 
 function acceptState(nextState) {
@@ -726,7 +874,7 @@ function lobby() {
               Tur Sayısı
               <select name="roundLimit">
                 ${Array.from(
-                  {length: 20},
+                  { length: 20 },
                   (_, i) => i + 1
                 ).map(n => `
                   <option
@@ -837,8 +985,10 @@ function secondsLeft() {
   return Math.max(
     0,
     Math.ceil(
-      (state.turnEndsAt -
-        (Date.now() + clockOffset)) / 1000
+      (
+        state.turnEndsAt -
+        (Date.now() + clockOffset)
+      ) / 1000
     )
   );
 }
@@ -919,6 +1069,7 @@ function game() {
             name="word"
             maxlength="35"
             placeholder="Kelimeyi tahmin et"
+            autocomplete="off"
             ${!mine ? 'disabled' : ''}
             required>
 
@@ -1055,6 +1206,8 @@ function finished() {
 function render() {
   ensureStyles();
 
+  const savedInput = captureInput();
+
   const views = {
     lobby,
     playing: game,
@@ -1068,6 +1221,10 @@ function render() {
 
   bindEvents();
   updateTimer();
+
+  if (savedInput) {
+    restoreInput(savedInput);
+  }
 }
 
 function collectSettings(form) {
@@ -1205,20 +1362,76 @@ function updateTimer() {
   box.classList.toggle('urgent', seconds <= 10);
 }
 
+// iPhone için güvenli otomatik güncelleme.
+// Açık kategori menüsünü veya yazı alanını silmez.
 async function poll() {
-  if (!code || !token || busy || leaving) return;
+  if (
+    !code ||
+    !token ||
+    busy ||
+    leaving ||
+    pollRunning
+  ) {
+    return;
+  }
+
+  pollRunning = true;
 
   try {
     const data = await request('state');
+    const nextState = data.state;
+    const next = stateSignature(nextState);
 
-    // Saat bilgisi değişse bile ekranı yenileme.
-    const next = stateSignature(data.state);
+    syncClock(nextState);
 
-    syncClock(data.state);
+    if (next === lastVersion) return;
 
-    if (next !== lastVersion) {
-      acceptState(data.state);
+    // Kategori, zorluk veya tur seçilirken
+    // aynı bekleme odasında ekranı yenileme.
+    if (
+      isEditingLobby() &&
+      nextState?.status === 'lobby'
+    ) {
+      const form = document.getElementById('startForm');
+
+      if (form) {
+        draftSettings = collectSettings(form);
+      }
+
+      // Sadece veri güncellenir.
+      // HTML elemanları korunur.
+      state = nextState;
+      lastVersion = next;
+
+      // Oyuncu sayısını ekranda güncelle.
+      const count = document.getElementById(
+        'lobbyPlayerCount'
+      );
+
+      if (count) {
+        count.textContent =
+          `${state.players.length}/6 oyuncu`;
+      }
+
+      return;
     }
+
+    // Kelime yazarken aynı tur devam ediyorsa
+    // iPhone klavyesini kapatma.
+    if (
+      isEditingWord() &&
+      nextState?.status === 'playing' &&
+      nextState.round === state.round &&
+      nextState.turnId === state.turnId &&
+      nextState.turnEndsAt === state.turnEndsAt
+    ) {
+      // Kelime yazılırken gereksiz ekran
+      // yenilemelerini ertele.
+      return;
+    }
+
+    acceptState(nextState);
+
   } catch (e) {
     if ([
       'Oda bulunamadı.',
@@ -1226,12 +1439,14 @@ async function poll() {
     ].includes(e.message)) {
       clearSession();
     }
+  } finally {
+    pollRunning = false;
   }
 }
 
 document.addEventListener('pointerdown', () => {
   if (!soundEnabled) enableSound();
-}, {once: true});
+}, { once: true });
 
 render();
 
