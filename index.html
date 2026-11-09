@@ -2,257 +2,486 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#24382e">
-<title>Adam Asmaca | Kara Tahta</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#193d30">
+  <meta
+    name="description"
+    content="Arkadaşlarınla çevrim içi Adam Asmaca oyna."
+  >
 
-:root{
- --board:#253f33;
- --board-dark:#172c23;
- --chalk:#f2eedc;
- --chalk-muted:#d0d7c5;
- --yellow:#f5d98c;
- --wood:#83502b;
- --wood-light:#b77c47;
- --red:#f3a8a0;
- --green:#b7efb3;
-}
-*{box-sizing:border-box}
-body{
- margin:0;
- min-height:100vh;
- background:
-  repeating-linear-gradient(90deg,#654021 0px,#76502c 8px,#59391e 17px);
- color:var(--chalk);
- font-family:'Patrick Hand','Comic Sans MS',cursive;
-}
-main{
- max-width:860px;
- margin:0 auto;
- padding:18px 13px 65px;
-}
-header{
- text-align:center;
- padding:12px 0 20px;
-}
-.logo{font-size:42px}
-h1{
- font-size:40px;
- letter-spacing:3px;
- margin:3px 0;
- text-shadow:1px 2px 2px #0005;
-}
-h2{font-size:29px;margin:5px 0 15px}
-h3{font-size:23px}
-p{font-size:19px;line-height:1.4}
-.subtitle{
- color:var(--yellow);
- font-size:17px;
- letter-spacing:2px;
-}
-.card,.glass{
- background:
-  radial-gradient(ellipse at 20% 15%,#ffffff09,transparent 65%),
-  repeating-linear-gradient(5deg,transparent 0px,transparent 35px,#ffffff04 37px),
-  var(--board);
- border:9px ridge var(--wood-light);
- outline:2px solid #4c2e19;
- border-radius:8px;
- padding:20px;
- margin-bottom:22px;
- box-shadow:0 9px 18px #0007,inset 0 0 35px #0004;
-}
-label{
- display:block;
- font-size:21px;
- margin:13px 0 7px;
-}
-input,select,textarea{
- display:block;
- width:100%;
- padding:12px 14px;
- margin-top:7px;
- background:#14291f;
- border:2px solid #9ba995;
- border-radius:5px;
- color:var(--chalk);
- font:21px 'Patrick Hand',cursive;
-}
-textarea{min-height:130px;resize:vertical}
-input:focus,select:focus,textarea:focus{
- outline:2px solid var(--yellow);
-}
-button{
- background:#d5c6a0;
- color:#27372b;
- border:2px solid #f3e6c7;
- border-radius:5px;
- padding:12px 18px;
- font:23px 'Patrick Hand',cursive;
- font-weight:bold;
- cursor:pointer;
- box-shadow:2px 3px 0 #0005;
-}
-button:disabled{opacity:.35;cursor:not-allowed}
-button:active:not(:disabled){transform:translateY(2px)}
-.btn{width:100%;margin-top:13px}
-.secondary{background:#aebcaf}
-.small{font-size:17px;padding:8px 12px}
-.center{text-align:center}
-.muted,.hint,.status{color:var(--chalk-muted)}
-.tag{
- display:inline-block;
- padding:5px 12px;
- border:2px dashed var(--yellow);
- border-radius:5px;
- color:var(--yellow);
- font-size:17px;
-}
-.room-code{
- font-size:49px;
- letter-spacing:7px;
- color:var(--yellow);
- font-weight:bold;
- margin:15px 0;
-}
-.notice{
- background:#623c35;
- border:2px solid var(--red);
- border-radius:5px;
- padding:13px;
- font-size:19px;
- margin:15px 0;
-}
-.info{
- border:2px dashed #a3b3a0;
- background:#142a20;
- padding:14px;
- font-size:19px;
- margin:15px 0;
-}
-.topline{
- display:flex;
- justify-content:space-between;
- align-items:center;
- gap:8px;
- margin-bottom:16px;
-}
-.scoreboard{
- display:grid;
- grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
- gap:11px;
- margin:14px 0;
-}
-.player{
- background:#193127;
- border:2px dashed #718b78;
- padding:12px;
- border-radius:5px;
-}
-.player.me{border-color:var(--yellow)}
-.name{font-size:20px;overflow-wrap:anywhere}
-.balance{
- font-size:27px;
- color:var(--yellow);
- margin-top:5px;
-}
-.word{
- display:flex;
- flex-wrap:wrap;
- justify-content:center;
- gap:6px;
- margin:23px 0;
-}
-.letter{
- min-width:29px;
- height:43px;
- border-bottom:3px solid var(--chalk);
- display:flex;
- align-items:center;
- justify-content:center;
- font-size:30px;
-}
-.space{border:0;width:17px}
-.keyboard{
- display:flex;
- flex-wrap:wrap;
- justify-content:center;
- gap:7px;
- margin:20px 0;
-}
-.key{
- min-width:35px;
- width:calc((100% - 55px)/7);
- max-width:57px;
- padding:8px 0;
- background:#e0ddc9;
- font-size:22px;
-}
-.key.used{
- opacity:.28;
- text-decoration:line-through;
-}
-.hangman{
- width:220px;
- height:230px;
- display:block;
- margin:12px auto;
- filter:drop-shadow(1px 1px 1px #0007);
-}
-.hangman line,.hangman circle{
- stroke:var(--chalk);
- stroke-width:4;
- fill:none;
- stroke-linecap:round;
-}
-.hangman .base{stroke:#c9b67f}
-.winner{
- color:var(--yellow);
- font-size:36px;
- margin:13px 0;
-}
-.resultrow{
- display:flex;
- justify-content:space-between;
- padding:12px 0;
- font-size:21px;
- border-bottom:1px dashed #829989;
- gap:12px;
-}
-footer{
- text-align:center;
- color:#fff3d5;
- font-size:16px;
- text-shadow:1px 2px 2px #000;
-}
-@media(max-width:390px){
- main{padding:12px 9px 50px}
- .card,.glass{padding:13px;border-width:7px}
- h1{font-size:34px}
- .room-code{font-size:36px}
- .key{min-width:30px;font-size:19px}
- .letter{min-width:25px}
-}
-</style>
+  <title>Adam Asmaca | Kara Tahta</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"
+    rel="stylesheet"
+  >
+
+  <style>
+    :root {
+      --green: #193d30;
+      --green-dark: #102b22;
+      --chalk: #fff8e6;
+      --yellow: #f5d47a;
+      --wood: #8a502d;
+      --wood-light: #d38b4c;
+      --red: #ff7979;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background: #56351f;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      color: var(--chalk);
+      font-family: 'Patrick Hand', cursive;
+      font-size: 19px;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          transparent 0,
+          #ffffff08 3px,
+          #00000018 9px,
+          transparent 18px,
+          #00000014 30px,
+          transparent 44px
+        ),
+        linear-gradient(
+          90deg,
+          #4d2c19,
+          #85502e 14%,
+          #65391f 32%,
+          #9b6339 50%,
+          #60351e 75%,
+          #4b2b1a
+        );
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: .45;
+    }
+
+    .page {
+      width: min(100%, 650px);
+      margin: 0 auto;
+      padding: 15px 12px 28px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 8px 0 15px;
+    }
+
+    .logo {
+      font-size: 38px;
+      line-height: 1;
+    }
+
+    h1 {
+      font-size: clamp(34px, 9vw, 49px);
+      letter-spacing: 3px;
+      line-height: 1.1;
+      margin: 8px 0 4px;
+      font-weight: normal;
+      text-shadow: 2px 3px 2px #0009;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--yellow);
+      letter-spacing: 2px;
+      font-size: clamp(13px, 3.5vw, 19px);
+    }
+
+    .frame {
+      border: 8px solid var(--wood-light);
+      border-radius: 13px;
+      padding: 5px;
+      background: #57321e;
+      box-shadow:
+        inset 0 0 0 2px #f4c08a,
+        0 6px 12px #0008;
+    }
+
+    .board {
+      padding: 12px;
+      border: 2px solid #ad744a;
+      border-radius: 4px;
+      background:
+        radial-gradient(
+          ellipse at 50% 30%,
+          #244b3c 0%,
+          var(--green) 65%,
+          var(--green-dark) 100%
+        );
+      box-shadow: inset 0 0 28px #0006;
+      min-height: 160px;
+    }
+
+    #app {
+      width: 100%;
+    }
+
+    .card {
+      border: 1px solid #ffffff35;
+      border-radius: 11px;
+      background: #ffffff0a;
+      padding: 13px;
+      margin-bottom: 10px;
+    }
+
+    .card h2 {
+      font-size: 25px;
+      font-weight: normal;
+      margin: 2px 0 9px;
+      color: var(--yellow);
+    }
+
+    .card p {
+      margin: 7px 0;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .muted,
+    .hint {
+      color: #e1e0cf;
+      opacity: .85;
+    }
+
+    .hint {
+      font-size: 15px;
+    }
+
+    label {
+      display: block;
+      margin: 9px 0;
+    }
+
+    input,
+    select,
+    textarea {
+      display: block;
+      width: 100%;
+      margin-top: 5px;
+      padding: 10px 11px;
+      border: 1px solid #ffffff65;
+      border-radius: 8px;
+      background: #f7f0df;
+      color: #193328;
+      outline: none;
+      font-size: 18px;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--yellow);
+      box-shadow: 0 0 0 2px #f5d47a55;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 11px 14px;
+      margin-top: 10px;
+      border: 2px solid #f6d780;
+      border-radius: 9px;
+      background: var(--yellow);
+      color: #263526;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .btn.secondary,
+    .small.secondary {
+      background: transparent;
+      color: var(--chalk);
+      border: 1px solid #ffffff90;
+    }
+
+    .small {
+      padding: 6px 13px;
+      border-radius: 7px;
+      font-size: 17px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 9px;
+      border: 1px solid #f5d47a70;
+      border-radius: 7px;
+      color: var(--yellow);
+      font-size: 16px;
+    }
+
+    .room-code {
+      margin: 9px auto;
+      font-size: 37px;
+      letter-spacing: 6px;
+      color: var(--yellow);
+      font-weight: bold;
+    }
+
+    .info,
+    .notice {
+      padding: 10px;
+      border-radius: 8px;
+      margin: 9px 0;
+    }
+
+    .info {
+      background: #ffffff12;
+    }
+
+    .notice {
+      background: #7e2d2d;
+      border: 1px solid #ff9999;
+    }
+
+    .scoreboard {
+      display: grid;
+      gap: 7px;
+    }
+
+    .player,
+    .resultrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      border-bottom: 1px solid #ffffff25;
+    }
+
+    .player.me {
+      color: var(--yellow);
+    }
+
+    .balance,
+    .winner {
+      color: var(--yellow);
+    }
+
+    .winner {
+      font-size: 29px;
+      overflow-wrap: anywhere;
+    }
+
+    .topline {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 9px;
+    }
+
+    .hangman {
+      width: 170px;
+      height: 170px;
+      max-width: 100%;
+      margin: 0 auto;
+      display: block;
+    }
+
+    .hangman .base {
+      stroke: var(--chalk);
+      stroke-width: 5;
+      fill: none;
+      stroke-linecap: round;
+    }
+
+    .hangman circle {
+      fill: none;
+    }
+
+    .word {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px;
+      margin: 13px 0;
+    }
+
+    .letter {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 23px;
+      min-height: 32px;
+      border-bottom: 2px solid var(--chalk);
+      font-size: 23px;
+    }
+
+    .letter.space {
+      min-width: 11px;
+      border: none;
+    }
+
+    .keyboard {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      gap: 5px;
+      margin: 12px 0;
+    }
+
+    .key {
+      position: relative;
+      min-width: 0;
+      padding: 7px 0;
+      border: 1px solid #ffffffa0;
+      border-radius: 6px;
+      background: #ffffff18;
+      color: var(--chalk);
+      font-size: 19px;
+      font-weight: bold;
+    }
+
+    .key.used {
+      opacity: .55;
+    }
+
+    .key.used::after {
+      content: '✕';
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #ff6767;
+      font-size: 27px;
+      text-shadow: 0 1px 3px #000;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 17px 5px;
+      font-size: 17px;
+      text-shadow: 1px 2px 3px #000;
+    }
+
+    #loadingMessage {
+      text-align: center;
+      padding: 12px;
+    }
+
+    @media (max-width: 380px) {
+      .page {
+        padding: 10px 8px 20px;
+      }
+
+      .board {
+        padding: 8px;
+      }
+
+      .keyboard {
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+      }
+    }
+  </style>
 </head>
+
 <body>
-<main>
-<header>
-<div class="logo">✏️</div>
-<h1>ADAM ASMACA</h1>
-<div class="subtitle">KARA TAHTA · ONLINE KELİME OYUNU</div>
-</header>
+  <main class="page">
+    <header class="header">
+      <div class="logo">✏️</div>
+      <h1>ADAM ASMACA</h1>
+      <p class="subtitle">
+        KARA TAHTA · ONLINE KELİME OYUNU
+      </p>
+    </header>
 
-<div id="app">
-<div class="card center">Oyun yükleniyor...</div>
-</div>
+    <section class="frame">
+      <div class="board">
+        <div id="app">
+          <div id="loadingMessage">
+            Oyun yükleniyor...
+          </div>
+        </div>
+      </div>
+    </section>
 
-<footer>✦ Arkadaşlarınla aynı tahtada yarış ✦</footer>
-</main>
+    <footer class="footer">
+      ✦ Arkadaşlarınla aynı tahtada yarış ✦
+    </footer>
+  </main>
 
-<script src="/app.js?v=3" defer></script>
+  <script>
+    window.addEventListener('error', function (event) {
+      const app = document.getElementById('app');
+
+      if (!app) return;
+
+      const loading = document.getElementById('loadingMessage');
+
+      if (loading) {
+        loading.textContent =
+          'Oyun başlatılamadı. JavaScript hatası: ' +
+          (event.message || 'Bilinmeyen hata');
+        loading.style.color = '#ff9999';
+      }
+    });
+
+    window.addEventListener(
+      'unhandledrejection',
+      function (event) {
+        const loading = document.getElementById('loadingMessage');
+
+        if (loading) {
+          loading.textContent =
+            'Oyun yüklenirken hata oluştu.';
+          loading.style.color = '#ff9999';
+        }
+      }
+    );
+  </script>
+
+  <script src="/app.js?v=10"></script>
+
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        const loading = document.getElementById('loadingMessage');
+
+        if (loading) {
+          loading.textContent =
+            'Oyun açılamadı. JavaScript dosyasını kontrol edin.';
+          loading.style.color = '#ff9999';
+        }
+      }, 5000);
+    });
+  </script>
 </body>
 </html>
