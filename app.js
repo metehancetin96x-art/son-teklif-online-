@@ -27,7 +27,7 @@ try {
   );
   code = saved.code || '';
   token = saved.token || '';
-} catch {}
+} catch (_) {}
 
 const esc = value => String(value ?? '').replace(
   /[&<>"']/g,
@@ -36,8 +36,8 @@ const esc = value => String(value ?? '').replace(
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#39;',
-  }[c]
+    "'": '&#39;'
+  }[c])
 );
 
 function ensureStyles() {
@@ -45,61 +45,61 @@ function ensureStyles() {
 
   const style = document.createElement('style');
   style.id = 'gameExtraStyles';
+
   style.textContent = `
     .card {
-      padding: 13px !important;
-      margin-bottom: 10px !important;
+      padding: 11px !important;
+      margin-bottom: 8px !important;
     }
     .card h2 {
-      margin: 3px 0 8px !important;
+      margin: 2px 0 7px !important;
       font-size: 1.25rem !important;
     }
     .card p {
-      margin: 6px 0 !important;
+      margin: 5px 0 !important;
     }
     .topline {
       margin-bottom: 6px !important;
     }
     .hangman {
-      width: 145px !important;
-      height: 145px !important;
-      max-height: 145px !important;
-      margin: 0 auto !important;
+      width: 140px !important;
+      height: 140px !important;
       display: block;
+      margin: 0 auto !important;
     }
     .word {
       display: flex;
-      justify-content: center;
       flex-wrap: wrap;
+      justify-content: center;
       gap: 3px;
-      margin: 9px 0 !important;
+      margin: 8px 0 !important;
     }
     .word .letter {
       min-width: 19px;
-      min-height: 28px;
+      min-height: 27px;
       padding: 2px;
-      font-size: 1.05rem;
+      font-size: 1.08rem;
     }
     .word .space {
       min-width: 9px;
     }
     .keyboard {
       display: grid !important;
-      grid-template-columns: repeat(9,minmax(0,1fr));
+      grid-template-columns: repeat(9, minmax(0, 1fr));
       gap: 4px !important;
-      margin: 10px 0 !important;
+      margin: 9px 0 !important;
     }
     .keyboard .key {
       position: relative;
       width: 100% !important;
       min-width: 0 !important;
-      min-height: 36px !important;
+      min-height: 35px !important;
       padding: 4px 0 !important;
       font-size: 1rem !important;
       line-height: 1.2;
     }
     .keyboard .key.used {
-      opacity: .6;
+      opacity: .65;
     }
     .keyboard .key.used::after {
       content: '✕';
@@ -115,7 +115,7 @@ function ensureStyles() {
       pointer-events: none;
     }
     .compact-game form {
-      margin-top: 7px !important;
+      margin-top: 6px !important;
     }
     .compact-game input {
       margin: 4px 0 !important;
@@ -128,10 +128,10 @@ function ensureStyles() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      margin: 7px 0;
-      padding: 7px 11px;
-      border: 1px solid rgba(255,255,255,.3);
+      gap: 8px;
+      margin: 6px 0;
+      padding: 6px 10px;
+      border: 1px solid #ffffff55;
       border-radius: 9px;
       font-weight: bold;
     }
@@ -153,13 +153,13 @@ function ensureStyles() {
       flex-wrap: wrap;
       gap: 5px;
       justify-content: center;
-      margin: 6px 0;
+      margin: 5px 0;
     }
     .score-chip {
-      border: 1px solid rgba(255,255,255,.3);
+      border: 1px solid #ffffff55;
       border-radius: 8px;
-      padding: 5px 8px;
-      font-size: .83rem;
+      padding: 4px 7px;
+      font-size: .84rem;
     }
     .score-chip.active {
       border-color: #f4d66d;
@@ -176,7 +176,7 @@ function ensureStyles() {
     .settings-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 7px;
     }
     .settings-grid label:first-child {
       grid-column: 1 / -1;
@@ -239,12 +239,12 @@ function ensureStyles() {
       color: #f4d66d;
       margin: 8px 0;
     }
-    @media (max-width: 370px) {
+    @media (max-width:370px) {
       .keyboard {
         grid-template-columns: repeat(8,minmax(0,1fr));
       }
       .keyboard .key {
-        min-height: 33px !important;
+        min-height: 32px !important;
       }
       .hangman {
         height: 125px !important;
@@ -252,18 +252,26 @@ function ensureStyles() {
       }
     }
   `;
+
   document.head.appendChild(style);
 }
 
 function saveSession() {
   localStorage.setItem(
     SESSION_KEY,
-    JSON.stringify({code, token})
+    JSON.stringify({ code, token })
   );
+}
+
+function removeConfetti() {
+  if (confettiTimer) clearTimeout(confettiTimer);
+  confettiTimer = null;
+  document.getElementById('confettiOverlay')?.remove();
 }
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
+
   code = '';
   token = '';
   state = null;
@@ -272,6 +280,7 @@ function clearSession() {
   lastTurnKey = '';
   celebratedKey = '';
   draftSettings = null;
+
   removeConfetti();
   render();
 }
@@ -279,7 +288,9 @@ function clearSession() {
 async function request(action, extra = {}) {
   const response = await fetch(API, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json'
+    },
     cache: 'no-store',
     body: JSON.stringify({
       action,
@@ -290,9 +301,10 @@ async function request(action, extra = {}) {
   });
 
   let data;
+
   try {
     data = await response.json();
-  } catch {
+  } catch (_) {
     throw new Error('Sunucu yanıt vermiyor.');
   }
 
@@ -303,17 +315,16 @@ async function request(action, extra = {}) {
   return data;
 }
 
-function syncClock(nextState) {
-  if (typeof nextState?.serverNow === 'number') {
-    clockOffset = nextState.serverNow - Date.now();
+function syncClock(s) {
+  if (typeof s?.serverNow === 'number') {
+    clockOffset = s.serverNow - Date.now();
   }
 }
 
 function acceptState(nextState) {
   if (!nextState) return;
 
-  const oldState = state;
-  const oldStatus = oldState?.status;
+  const previousStatus = state?.status;
 
   syncClock(nextState);
   state = nextState;
@@ -321,15 +332,14 @@ function acceptState(nextState) {
 
   if (
     nextState.status === 'lobby' &&
-    oldStatus !== 'lobby'
+    previousStatus !== 'lobby'
   ) {
     draftSettings = null;
   }
 
-  const turnKey =
-    nextState.status === 'playing'
-      ? `${nextState.code}:${nextState.round}:${nextState.turnId}:${nextState.turnEndsAt}`
-      : '';
+  const turnKey = nextState.status === 'playing'
+    ? `${nextState.code}:${nextState.round}:${nextState.turnId}:${nextState.turnEndsAt}`
+    : '';
 
   if (turnKey && turnKey !== lastTurnKey) {
     lastTurnKey = turnKey;
@@ -339,10 +349,9 @@ function acceptState(nextState) {
     }
   }
 
-  const finishKey =
-    nextState.status === 'finished'
-      ? `${nextState.code}:${nextState.round}:${nextState.status}`
-      : '';
+  const finishKey = nextState.status === 'finished'
+    ? `${nextState.code}:${nextState.round}:finished`
+    : '';
 
   render();
 
@@ -366,7 +375,9 @@ async function perform(action, extra = {}) {
 
     saveSession();
 
-    if (data.state) acceptState(data.state);
+    if (data.state) {
+      acceptState(data.state);
+    }
 
     if (action === 'start') {
       draftSettings = null;
@@ -382,7 +393,9 @@ async function perform(action, extra = {}) {
 async function leaveRoom() {
   if (busy || leaving) return;
 
-  if (!confirm('Odadan ayrılıp ana sayfaya dönmek istiyor musun?')) {
+  if (!confirm(
+    'Odadan ayrılıp ana sayfaya dönmek istiyor musun?'
+  )) {
     return;
   }
 
@@ -393,12 +406,13 @@ async function leaveRoom() {
     if (code && token) {
       await request('leave');
     }
+
     clearSession();
   } catch (e) {
-    if (
-      e.message === 'Oda bulunamadı.' ||
-      e.message === 'Oturum geçersiz.'
-    ) {
+    if ([
+      'Oda bulunamadı.',
+      'Oturum geçersiz.'
+    ].includes(e.message)) {
       clearSession();
     } else {
       error = 'Odadan çıkılamadı: ' + e.message;
@@ -412,43 +426,47 @@ async function leaveRoom() {
 
 function enableSound() {
   try {
-    const AudioCtx =
+    const Ctx =
       window.AudioContext || window.webkitAudioContext;
 
-    if (!AudioCtx) return;
+    if (!Ctx) return;
 
     if (!audioContext) {
-      audioContext = new AudioCtx();
+      audioContext = new Ctx();
     }
 
-    audioContext.resume();
+    audioContext.resume().catch(() => {});
     soundEnabled = true;
-  } catch {}
+  } catch (_) {}
 }
 
 function beep(frequency = 740, duration = .16, delay = 0) {
   if (!soundEnabled || !audioContext) return;
 
   try {
-    const oscillator = audioContext.createOscillator();
+    const osc = audioContext.createOscillator();
     const gain = audioContext.createGain();
     const start = audioContext.currentTime + delay;
 
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(frequency, start);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, start);
+
     gain.gain.setValueAtTime(.0001, start);
-    gain.gain.exponentialRampToValueAtTime(.15, start + .015);
+    gain.gain.exponentialRampToValueAtTime(
+      .15,
+      start + .015
+    );
     gain.gain.exponentialRampToValueAtTime(
       .0001,
       start + duration
     );
 
-    oscillator.connect(gain);
+    osc.connect(gain);
     gain.connect(audioContext.destination);
 
-    oscillator.start(start);
-    oscillator.stop(start + duration + .02);
-  } catch {}
+    osc.start(start);
+    osc.stop(start + duration + .02);
+  } catch (_) {}
 }
 
 function notifyTurn() {
@@ -460,21 +478,13 @@ function notifyTurn() {
   beep(980, .18, .18);
 }
 
-function removeConfetti() {
-  if (confettiTimer) {
-    clearTimeout(confettiTimer);
-    confettiTimer = null;
-  }
-
-  document.getElementById('confettiOverlay')?.remove();
-}
-
 function celebrate() {
   removeConfetti();
 
   const sorted = [...state.players].sort(
     (a, b) => b.score - a.score
   );
+
   const top = sorted[0]?.score ?? 0;
   const winners = sorted.filter(p => p.score === top);
 
@@ -483,33 +493,44 @@ function celebrate() {
   overlay.className = 'confetti-overlay';
 
   const colors = [
-    '#f4d66d','#ff6b6b','#63d6b0',
-    '#ffffff','#8ab4ff','#e58aff'
+    '#f4d66d',
+    '#ff6b6b',
+    '#63d6b0',
+    '#ffffff',
+    '#8ab4ff',
+    '#e58aff'
   ];
 
   for (let i = 0; i < 110; i++) {
     const piece = document.createElement('span');
     piece.className = 'confetti-piece';
+
     piece.style.left = `${Math.random() * 100}%`;
     piece.style.background =
       colors[Math.floor(Math.random() * colors.length)];
+
     piece.style.animationDuration =
       `${2.4 + Math.random() * 2.5}s`;
+
     piece.style.animationDelay =
       `${Math.random() * 1.2}s`;
+
     piece.style.setProperty(
       '--drift',
       `${Math.random() * 180 - 90}px`
     );
+
     piece.style.setProperty(
       '--spin',
       `${Math.random() * 900 - 450}deg`
     );
+
     overlay.appendChild(piece);
   }
 
   const banner = document.createElement('div');
   banner.className = 'celebration-banner';
+
   banner.innerHTML = `
     <div style="font-size:2.4rem">🏆🎉</div>
     <h2>${winners.length > 1 ? 'BERABERE!' : 'KAZANAN!'}</h2>
@@ -572,12 +593,17 @@ function home() {
 
     <div class="card">
       <h2>✏️ Yeni Oyun</h2>
+
       <form id="createForm">
         <label>
           Oyuncu adın
-          <input name="name" maxlength="22"
-            required placeholder="Adını yaz">
+          <input
+            name="name"
+            maxlength="22"
+            required
+            placeholder="Adını yaz">
         </label>
+
         <button class="btn" type="submit">
           Oda Oluştur
         </button>
@@ -586,19 +612,30 @@ function home() {
 
     <div class="card">
       <h2>🔑 Odaya Katıl</h2>
+
       <form id="joinForm">
         <label>
           Oyuncu adın
-          <input name="name" maxlength="22"
-            required placeholder="Adını yaz">
+          <input
+            name="name"
+            maxlength="22"
+            required
+            placeholder="Adını yaz">
         </label>
+
         <label>
           Oda kodu
-          <input name="roomCode" maxlength="6"
-            required placeholder="ABC123"
+          <input
+            name="roomCode"
+            maxlength="6"
+            required
+            placeholder="ABC123"
             style="text-transform:uppercase">
         </label>
-        <button class="btn secondary" type="submit">
+
+        <button
+          class="btn secondary"
+          type="submit">
           Odaya Katıl
         </button>
       </form>
@@ -625,10 +662,15 @@ function lobby() {
 
     <div class="card center">
       <span class="tag">BEKLEME ODASI</span>
-      <div class="room-code">${esc(state.code)}</div>
+
+      <div class="room-code">
+        ${esc(state.code)}
+      </div>
+
       <button class="small secondary" id="copyCode">
         Kodu Kopyala
       </button>
+
       <p>${state.players.length}/6 oyuncu</p>
       ${scores()}
     </div>
@@ -643,13 +685,20 @@ function lobby() {
               Kategori
               <select name="category" id="categorySelect">
                 ${state.categories.map(c => `
-                  <option value="${esc(c)}"
-                    ${settings.category === c ? 'selected' : ''}>
+                  <option
+                    value="${esc(c)}"
+                    ${settings.category === c
+                      ? 'selected'
+                      : ''}>
                     ${esc(c)}
                   </option>
                 `).join('')}
-                <option value="Özel"
-                  ${settings.category === 'Özel' ? 'selected' : ''}>
+
+                <option
+                  value="Özel"
+                  ${settings.category === 'Özel'
+                    ? 'selected'
+                    : ''}>
                   Özel Kategori
                 </option>
               </select>
@@ -658,9 +707,12 @@ function lobby() {
             <label>
               Zorluk
               <select name="difficulty">
-                ${['Kolay','Orta','Zor'].map(d => `
-                  <option value="${d}"
-                    ${settings.difficulty === d ? 'selected' : ''}>
+                ${['Kolay', 'Orta', 'Zor'].map(d => `
+                  <option
+                    value="${d}"
+                    ${settings.difficulty === d
+                      ? 'selected'
+                      : ''}>
                     ${d}
                   </option>
                 `).join('')}
@@ -670,38 +722,48 @@ function lobby() {
             <label>
               Tur Sayısı
               <select name="roundLimit">
-                ${Array.from({length:20}, (_, i) => i + 1)
-                  .map(n => `
-                    <option value="${n}"
-                      ${Number(settings.roundLimit) === n
-                        ? 'selected'
-                        : ''}>
-                      ${n} Tur
-                    </option>
-                  `).join('')}
+                ${Array.from(
+                  {length: 20},
+                  (_, i) => i + 1
+                ).map(n => `
+                  <option
+                    value="${n}"
+                    ${Number(settings.roundLimit) === n
+                      ? 'selected'
+                      : ''}>
+                    ${n} Tur
+                  </option>
+                `).join('')}
               </select>
             </label>
           </div>
 
-          <div id="customFields"
+          <div
+            id="customFields"
             style="display:${settings.category === 'Özel'
               ? 'block'
               : 'none'}">
+
             <label>
               Özel kategori adı
-              <input name="customTitle"
+              <input
+                name="customTitle"
                 maxlength="40"
                 value="${esc(settings.customTitle)}"
                 placeholder="Kategori adı">
             </label>
+
             <label>
               Kelimeler (her satıra bir kelime)
-              <textarea name="customWords"
+              <textarea
+                name="customWords"
                 placeholder="KELİME BİR&#10;KELİME İKİ">${esc(settings.customWords)}</textarea>
             </label>
           </div>
 
-          <button class="btn" type="submit"
+          <button
+            class="btn"
+            type="submit"
             ${state.players.length < 2 ? 'disabled' : ''}>
             ▶ Oyunu Başlat
           </button>
@@ -722,29 +784,42 @@ function lobby() {
 
 function drawing(wrong) {
   return `
-    <svg class="hangman" viewBox="0 0 220 230"
+    <svg
+      class="hangman"
+      viewBox="0 0 220 230"
       aria-label="Adam asmaca çizimi">
-      <g fill="none" stroke="currentColor"
-        stroke-width="5" stroke-linecap="round">
+
+      <g
+        fill="none"
+        stroke="currentColor"
+        stroke-width="5"
+        stroke-linecap="round">
+
         <line x1="30" y1="210" x2="150" y2="210"/>
         <line x1="65" y1="210" x2="65" y2="15"/>
         <line x1="65" y1="15" x2="145" y2="15"/>
         <line x1="145" y1="15" x2="145" y2="42"/>
+
         ${wrong >= 1
           ? '<circle cx="145" cy="65" r="23"/>'
           : ''}
+
         ${wrong >= 2
           ? '<line x1="145" y1="88" x2="145" y2="145"/>'
           : ''}
+
         ${wrong >= 3
           ? '<line x1="145" y1="105" x2="110" y2="128"/>'
           : ''}
+
         ${wrong >= 4
           ? '<line x1="145" y1="105" x2="180" y2="128"/>'
           : ''}
+
         ${wrong >= 5
           ? '<line x1="145" y1="145" x2="112" y2="187"/>'
           : ''}
+
         ${wrong >= 6
           ? '<line x1="145" y1="145" x2="178" y2="187"/>'
           : ''}
@@ -754,18 +829,20 @@ function drawing(wrong) {
 }
 
 function secondsLeft() {
-  if (!state || !state.turnEndsAt) return 0;
+  if (!state?.turnEndsAt) return 0;
 
   return Math.max(
     0,
     Math.ceil(
-      (state.turnEndsAt - (Date.now() + clockOffset)) / 1000
+      (state.turnEndsAt -
+        (Date.now() + clockOffset)) / 1000
     )
   );
 }
 
 function game() {
   const mine = state.turnId === state.meId;
+
   const current = state.players.find(
     p => p.id === state.turnId
   );
@@ -778,6 +855,7 @@ function game() {
         <span class="tag">
           TUR ${state.round}/${state.roundLimit}
         </span>
+
         <span class="tag">
           ${esc(state.category)} · ${esc(state.difficulty)}
         </span>
@@ -790,6 +868,7 @@ function game() {
               ? '✏️ SIRA SENDE!'
               : 'Sıra: ' + esc(current?.name || 'Oyuncu')}
           </span>
+
           <span class="timer-number" id="timerNumber">
             ${secondsLeft()} sn
           </span>
@@ -798,7 +877,8 @@ function game() {
         ${drawing(state.wrong)}
 
         <p>
-          Yanlış: <strong>${state.wrong}/${state.maxWrong}</strong>
+          Yanlış:
+          <strong>${state.wrong}/${state.maxWrong}</strong>
         </p>
 
         <div class="word">
@@ -811,13 +891,17 @@ function game() {
           ).join('')}
         </div>
 
-        <p class="muted">${esc(state.message)}</p>
+        <p class="muted">
+          ${esc(state.message)}
+        </p>
 
         <div class="keyboard">
           ${ALPHABET.map(c => `
             <button
               type="button"
-              class="key ${state.guessed.includes(c) ? 'used' : ''}"
+              class="key ${state.guessed.includes(c)
+                ? 'used'
+                : ''}"
               data-letter="${c}"
               ${!mine || state.guessed.includes(c)
                 ? 'disabled'
@@ -835,7 +919,9 @@ function game() {
             ${!mine ? 'disabled' : ''}
             required>
 
-          <button class="btn" type="submit"
+          <button
+            class="btn"
+            type="submit"
             ${!mine ? 'disabled' : ''}>
             Kelimeyi Tahmin Et
           </button>
@@ -860,6 +946,7 @@ function result() {
   const winner = state.players.find(
     p => p.id === state.winnerId
   );
+
   const host = state.meId === state.hostId;
 
   return `
@@ -879,7 +966,9 @@ function result() {
       <p>${esc(state.message)}</p>
       <p>Doğru Kelime</p>
 
-      <h1 style="color:var(--yellow);overflow-wrap:anywhere">
+      <h1 style="
+        color:var(--yellow);
+        overflow-wrap:anywhere">
         ${esc(state.revealedWord)}
       </h1>
 
@@ -906,6 +995,7 @@ function finished() {
   const sorted = [...state.players].sort(
     (a, b) => b.score - a.score
   );
+
   const top = sorted[0]?.score ?? 0;
   const winners = sorted.filter(p => p.score === top);
   const host = state.meId === state.hostId;
@@ -930,9 +1020,12 @@ function finished() {
 
     <div class="card">
       <h2>Final Sıralaması</h2>
+
       ${sorted.map((p, i) => `
         <div class="resultrow">
-          <strong>${i + 1}. ${esc(p.name)}</strong>
+          <strong>
+            ${i + 1}. ${esc(p.name)}
+          </strong>
           <strong>★ ${p.score}</strong>
         </div>
       `).join('')}
@@ -942,6 +1035,7 @@ function finished() {
       <button class="btn" id="restartBtn">
         ↻ Yeni Oyun
       </button>
+
       <p class="muted center">
         Aynı oyuncularla kategori seçme ekranına dön.
       </p>
@@ -958,17 +1052,16 @@ function finished() {
 function render() {
   ensureStyles();
 
-  if (!state) {
-    app.innerHTML = home();
-  } else {
-    const views = {
-      lobby,
-      playing: game,
-      result,
-      finished
-    };
-    app.innerHTML = (views[state.status] || home)();
-  }
+  const views = {
+    lobby,
+    playing: game,
+    result,
+    finished
+  };
+
+  app.innerHTML = state
+    ? (views[state.status] || home)()
+    : home();
 
   bindEvents();
   updateTimer();
@@ -1016,7 +1109,7 @@ function bindEvents() {
       try {
         await navigator.clipboard.writeText(state.code);
         alert('Kod kopyalandı: ' + state.code);
-      } catch {
+      } catch (_) {
         alert('Oda kodu: ' + state.code);
       }
     });
@@ -1034,6 +1127,7 @@ function bindEvents() {
       saveDraft();
 
       const fields = document.getElementById('customFields');
+
       if (fields) {
         fields.style.display =
           draftSettings.category === 'Özel'
@@ -1046,6 +1140,7 @@ function bindEvents() {
       e.preventDefault();
       enableSound();
       saveDraft();
+
       perform('start', draftSettings);
     });
   }
@@ -1093,11 +1188,16 @@ function updateTimer() {
   const number = document.getElementById('timerNumber');
   const box = document.getElementById('timerBox');
 
-  if (!number || !box || state?.status !== 'playing') {
+  if (
+    !number ||
+    !box ||
+    state?.status !== 'playing'
+  ) {
     return;
   }
 
   const seconds = secondsLeft();
+
   number.textContent = seconds + ' sn';
   box.classList.toggle('urgent', seconds <= 10);
 }
@@ -1115,10 +1215,10 @@ async function poll() {
       acceptState(data.state);
     }
   } catch (e) {
-    if (
-      e.message === 'Oda bulunamadı.' ||
-      e.message === 'Oturum geçersiz.'
-    ) {
+    if ([
+      'Oda bulunamadı.',
+      'Oturum geçersiz.'
+    ].includes(e.message)) {
       clearSession();
     }
   }
