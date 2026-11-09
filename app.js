@@ -6,25 +6,15 @@ const API = '/api';
 const SESSION_KEY = 'hangman-session';
 const ALPHABET = [...'ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ'];
 
-let code = '';
-let token = '';
-let state = null;
-let busy = false;
-let leaving = false;
-let error = '';
-let lastVersion = '';
-let clockOffset = 0;
-let lastTurnKey = '';
-let celebratedKey = '';
-let audioContext = null;
-let soundEnabled = false;
-let draftSettings = null;
-let confettiTimer = null;
+let code = '', token = '', state = null;
+let busy = false, leaving = false, error = '';
+let lastVersion = '', clockOffset = 0;
+let lastTurnKey = '', celebratedKey = '';
+let audioContext = null, soundEnabled = false;
+let draftSettings = null, confettiTimer = null;
 
 try {
-  const saved = JSON.parse(
-    localStorage.getItem(SESSION_KEY) || '{}'
-  );
+  const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
   code = saved.code || '';
   token = saved.token || '';
 } catch (_) {}
@@ -71,17 +61,18 @@ function ensureStyles() {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 3px;
-      margin: 8px 0 !important;
+      gap: 5px;
+      margin: 10px 0 !important;
     }
     .word .letter {
-      min-width: 19px;
-      min-height: 27px;
-      padding: 2px;
-      font-size: 1.08rem;
+      min-width: 26px;
+      min-height: 37px;
+      padding: 3px;
+      font-size: 1.3rem;
+      border-bottom-width: 3px;
     }
     .word .space {
-      min-width: 9px;
+      min-width: 12px;
     }
     .keyboard {
       display: grid !important;
@@ -250,6 +241,10 @@ function ensureStyles() {
         height: 125px !important;
         width: 125px !important;
       }
+      .word .letter {
+        min-width: 23px;
+        min-height: 34px;
+      }
     }
   `;
 
@@ -271,7 +266,6 @@ function removeConfetti() {
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
-
   code = '';
   token = '';
   state = null;
@@ -280,7 +274,6 @@ function clearSession() {
   lastTurnKey = '';
   celebratedKey = '';
   draftSettings = null;
-
   removeConfetti();
   render();
 }
@@ -321,6 +314,16 @@ function syncClock(s) {
   }
 }
 
+// Sunucu saati her sorguda değişir.
+// Bu alanı karşılaştırmaya katmıyoruz.
+// Böylece ekran gereksiz yere yenilenmez.
+function stateSignature(s) {
+  if (!s) return '';
+
+  const { serverNow, ...stableState } = s;
+  return JSON.stringify(stableState);
+}
+
 function acceptState(nextState) {
   if (!nextState) return;
 
@@ -328,7 +331,7 @@ function acceptState(nextState) {
 
   syncClock(nextState);
   state = nextState;
-  lastVersion = JSON.stringify(nextState);
+  lastVersion = stateSignature(nextState);
 
   if (
     nextState.status === 'lobby' &&
@@ -1207,7 +1210,9 @@ async function poll() {
 
   try {
     const data = await request('state');
-    const next = JSON.stringify(data.state);
+
+    // Saat bilgisi değişse bile ekranı yenileme.
+    const next = stateSignature(data.state);
 
     syncClock(data.state);
 
